@@ -95,6 +95,13 @@ window.onload = function () {
         redraw();
     });
 
+    // Burger menu functionality for mobile
+    const burgerMenu = document.getElementById('burger-menu');
+    const navbarMenu = document.querySelector('.navbar-menu');
+    burgerMenu.addEventListener('click', function () {
+        navbarMenu.classList.toggle('active');
+    });
+
     window.addEventListener('resize', redraw);
 
     redraw();
