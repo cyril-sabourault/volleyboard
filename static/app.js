@@ -4,6 +4,9 @@ window.onload = function () {
     const ctx = canvas.getContext('2d');
     let orientation = null; // will be set by loadCourtState or default
 
+    // Debug flag to show grabable area borders
+    let showGrabAreas = false;
+
     function getMaxCourtSize() {
         const padding = 16; // smaller margin for better fit
         const toolbarHeight = document.getElementById('toolbar').offsetHeight;
@@ -248,7 +251,9 @@ window.onload = function () {
     // Update drawArrows to use relative coordinates
     function drawObjects() {
         ctx.save();
+        // Draw all non-ball objects first
         for (const obj of objects) {
+            if (obj.type === 'ball') continue;
             if (obj.type === 'arrow') {
                 const start = toAbsolute(obj.rx1, obj.ry1);
                 const end = toAbsolute(obj.rx2, obj.ry2);
@@ -266,33 +271,6 @@ window.onload = function () {
                     drawHandle(start.x, start.y);
                     drawHandle(end.x, end.y);
                 }
-            } else if (obj.type === 'ball') {
-                const center = toAbsolute(obj.rx, obj.ry);
-                const r = (obj.width || 20) / 2;
-                ctx.save();
-                ctx.translate(center.x, center.y);
-                ctx.rotate(obj.rotation || 0); // Use rotation property, default 0
-                ctx.strokeStyle = obj.color || '#1976d2';
-                ctx.lineWidth = obj.width || 4;
-                ctx.beginPath();
-                ctx.arc(0, 0, r, 0, 2 * Math.PI);
-                ctx.fillStyle = '#fff';
-                ctx.fill();
-                ctx.stroke();
-                // Simple volleyball pattern
-                ctx.strokeStyle = obj.color || '#1976d2';
-                ctx.lineWidth = 1.2;
-                ctx.beginPath();
-                ctx.arc(0, 0, r, Math.PI, 2 * Math.PI);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(0, 0, r, 0, Math.PI);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.ellipse(0, 0, r, r * 0.5, 0, 0, 2 * Math.PI);
-                ctx.stroke();
-                if (obj.selected) drawHandle(0, 0);
-                ctx.restore();
             } else if (obj.type === 'player') {
                 const center = toAbsolute(obj.rx, obj.ry);
                 let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
@@ -300,7 +278,7 @@ window.onload = function () {
                 if (orientation === 'horizontal') angle = Math.PI / 2;
                 ctx.save();
                 ctx.translate(center.x, center.y);
-                ctx.rotate((obj.rotation || 0) + angle); // Use rotation property, default 0, plus orientation
+                ctx.rotate((obj.rotation || 0) + angle);
                 ctx.strokeStyle = obj.color || '#388e3c';
                 ctx.lineWidth = obj.width || 4;
                 ctx.beginPath();
@@ -308,7 +286,106 @@ window.onload = function () {
                 ctx.fillStyle = '#fff';
                 ctx.fill();
                 ctx.stroke();
-                if (obj.selected) drawHandle(0, 0);
+                // --- Draw grab area border for player (ellipse) ---
+                if (showGrabAreas) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, rx, ry, 0, 0, 2 * Math.PI);
+                    ctx.strokeStyle = 'rgba(0,128,255,0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                }
+                // Draw tilt handle if selected
+                if (obj.selected) {
+                    // Place handle above ellipse (0, -ry - 20)
+                    drawTiltHandle(0, -ry - 20);
+                    // --- Draw grab area border for tilt handle ---
+                    if (showGrabAreas) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(0, -ry - 20, 12, 0, 2 * Math.PI);
+                        ctx.strokeStyle = 'rgba(0,128,255,0.4)';
+                        ctx.lineWidth = 2;
+                        ctx.setLineDash([4, 4]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.restore();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+        // Draw all balls last (topmost)
+        for (const obj of objects) {
+            if (obj.type !== 'ball') continue;
+            const center = toAbsolute(obj.rx, obj.ry);
+            const r = (obj.width || 20) / 2 * 20;
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            ctx.rotate(obj.rotation || 0);
+            ctx.scale(r / 10, r / 10);
+            ctx.lineWidth = 2 / (r / 10);
+            ctx.strokeStyle = obj.color || '#1976d2';
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            // --- Draw grab area border for ball ---
+            if (showGrabAreas) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, 8 * 0.8, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(0,128,255,0.4)';
+                ctx.lineWidth = 2 / (r / 10);
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+            }
+            ctx.lineWidth = 1.2 / (r / 10);
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, Math.PI, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-6, -6); ctx.bezierCurveTo(-2, -5, 2, -5, 6, -6); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-6, 6); ctx.bezierCurveTo(-2, 5, 2, 5, 6, 6); ctx.stroke();
+            // No handle for ball
+            ctx.restore();
+        }
+        // --- Draw grab area border for arrow handles and line ---
+        if (showGrabAreas) {
+            for (const obj of objects) {
+                if (obj.type !== 'arrow') continue;
+                const s = toAbsolute(obj.rx1, obj.ry1), e = toAbsolute(obj.rx2, obj.ry2);
+                // Handles
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, 12, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(0,128,255,0.4)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, 12, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+                // Line grab area (draw as a thick transparent line)
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(e.x, e.y);
+                ctx.strokeStyle = 'rgba(0,128,255,0.2)';
+                ctx.lineWidth = 20;
+                ctx.stroke();
                 ctx.restore();
             }
         }
@@ -332,6 +409,24 @@ window.onload = function () {
 
     function drawHandle(x, y) {
         ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#1976d2';
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Draw a tilt handle (small circle)
+    function drawTiltHandle(x, y) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(x, y); // line from center to handle
+        ctx.strokeStyle = '#1976d2';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, 8, 0, 2 * Math.PI);
         ctx.fillStyle = '#fff';
@@ -400,10 +495,14 @@ window.onload = function () {
     canvas.addEventListener('mouseup', function (e) {
         if (objectInsertMode && currentObject) {
             objects.push(currentObject);
+            // If placing a ball, immediately switch to cursor mode
+            if (currentObject.type === 'ball') {
+                objectInsertMode = null;
+                updateToolbarActiveButton();
+                canvas.style.cursor = '';
+            }
             currentObject = null;
             startPt = null;
-            // Do NOT set objectInsertMode = false; keep insert mode active
-            // Do NOT reset canvas.style.cursor here
             persistAndRedraw();
             updateArrowControlsFromSelection();
         } else if (dragMode) {
@@ -446,6 +545,70 @@ window.onload = function () {
                 };
             }
         } else {
+            // --- Player tilt handle hit test (before player move) ---
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'player' || !a.selected) return false;
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                // Compute handle position by rotating (0, -ry-20) by angle
+                const localX = 0, localY = -ry - 20;
+                const hx = center.x + localX * Math.cos(angle) - localY * Math.sin(angle);
+                const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
+                const dist = Math.hypot(mx - hx, my - hy);
+                return dist < 12;
+            });
+            if (dragObjectIndex !== -1) {
+                dragMode = 'rotate-player';
+                const a = objects[dragObjectIndex];
+                const center = toAbsolute(a.rx, a.ry);
+                dragOffset = { cx: center.x, cy: center.y, startAngle: a.rotation || 0 };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Ball: check if mouse is inside any ball
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'ball') return false;
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                dragMode = 'move-ball';
+                dragOffset = {
+                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
+                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
+                };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Player: check if mouse is inside any player (but not on tilt handle)
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'player') return false;
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                const dx = mx - center.x, dy = my - center.y;
+                // Also check not on tilt handle
+                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                const hx = center.x + Math.sin(angle) * 0 + Math.cos(angle) * (0) - Math.sin(angle) * (ry + 20);
+                const hy = center.y - Math.cos(angle) * (0) + Math.sin(angle) * (0) - Math.cos(angle) * (ry + 20);
+                if (Math.hypot(mx - hx, my - hy) < 16) return false;
+                return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                dragMode = 'move-player';
+                dragOffset = {
+                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
+                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
+                };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
             // Check for handle hover (resize zone)
             dragObjectIndex = objects.findIndex(a => {
                 const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
@@ -480,7 +643,7 @@ window.onload = function () {
                 updateArrowControlsFromSelection();
                 return;
             }
-            // Deselect all if not clicking on any arrow
+            // Deselect all if not clicking on any object
             objects.forEach(a => a.selected = false);
             redrawAll();
             updateArrowControlsFromSelection();
@@ -509,22 +672,41 @@ window.onload = function () {
             drawArrowhead(s.x, s.y, ept.x, ept.y);
             ctx.restore();
         } else if (dragMode && dragObjectIndex !== -1) {
-            const a = objects[dragObjectIndex];
-            const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
-            if (dragMode === 'move') {
-                const dx = mx - dragOffset.x;
-                const dy = my - dragOffset.y;
-                const newS = toRelative(s.x + dx, s.y + dy);
-                const newE = toRelative(ept.x + dx, ept.y + dy);
-                a.rx1 = newS.rx; a.ry1 = newS.ry; a.rx2 = newE.rx; a.ry2 = newE.ry;
-                dragOffset = { x: mx, y: my };
-            } else if (dragMode === 'resize-start') {
-                const rel = toRelative(mx, my);
-                a.rx1 = rel.rx; a.ry1 = rel.ry;
-            } else if (dragMode === 'resize-end') {
-                const rel = toRelative(mx, my);
-                a.rx2 = rel.rx; a.ry2 = rel.ry;
+            if (dragMode === 'move-ball' || dragMode === 'move-player') {
+                const a = objects[dragObjectIndex];
+                const newCenter = toRelative(mx - dragOffset.x, my - dragOffset.y);
+                a.rx = newCenter.rx;
+                a.ry = newCenter.ry;
+                persistAndRedraw();
+            } else {
+                const a = objects[dragObjectIndex];
+                const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
+                if (dragMode === 'move') {
+                    const dx = mx - dragOffset.x;
+                    const dy = my - dragOffset.y;
+                    const newS = toRelative(s.x + dx, s.y + dy);
+                    const newE = toRelative(ept.x + dx, ept.y + dy);
+                    a.rx1 = newS.rx; a.ry1 = newS.ry; a.rx2 = newE.rx; a.ry2 = newE.ry;
+                    dragOffset = { x: mx, y: my };
+                } else if (dragMode === 'resize-start') {
+                    const rel = toRelative(mx, my);
+                    a.rx1 = rel.rx; a.ry1 = rel.ry;
+                } else if (dragMode === 'resize-end') {
+                    const rel = toRelative(mx, my);
+                    a.rx2 = rel.rx; a.ry2 = rel.ry;
+                }
+                persistAndRedraw();
             }
+        } else if (dragMode === 'rotate-player' && dragObjectIndex !== -1) {
+            const a = objects[dragObjectIndex];
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            // Calculate angle from center to mouse
+            const angle = Math.atan2(my - dragOffset.cy, mx - dragOffset.cx);
+            // Subtract orientation offset
+            let orient = (orientation === 'horizontal') ? Math.PI / 2 : 0;
+            a.rotation = angle - orient;
             persistAndRedraw();
         }
     });
@@ -532,10 +714,14 @@ window.onload = function () {
     canvas.addEventListener('mouseup', function (e) {
         if (objectInsertMode && currentObject) {
             objects.push(currentObject);
+            // If placing a ball, immediately switch to cursor mode
+            if (currentObject.type === 'ball') {
+                objectInsertMode = null;
+                updateToolbarActiveButton();
+                canvas.style.cursor = '';
+            }
             currentObject = null;
             startPt = null;
-            // Do NOT set objectInsertMode = false; keep insert mode active
-            // Do NOT reset canvas.style.cursor here
             persistAndRedraw();
             updateArrowControlsFromSelection();
         } else if (dragMode) {
@@ -544,7 +730,7 @@ window.onload = function () {
         }
     });
 
-    // --- Cursor feedback for arrows ---
+    // --- Cursor feedback for all objects (arrows, players, balls) ---
     function updateCursor(e) {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
@@ -553,26 +739,216 @@ window.onload = function () {
             canvas.style.cursor = 'crosshair';
             return;
         }
-        // Check for handle hover (resize zone)
+        // Player: tilt handle (show grab cursor)
         for (const a of objects) {
-            if (isNearHandle(mx, my, a.x1, a.y1) || isNearHandle(mx, my, a.x2, a.y2)) {
-                // Determine direction for better UX (optional: use pointer for now)
-                canvas.style.cursor = 'pointer';
-                return;
+            if (a.type === 'player' && a.selected) {
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                // Compute handle position by rotating (0, -ry-20) by angle
+                const localX = 0, localY = -ry - 20;
+                const hx = center.x + localX * Math.cos(angle) - localY * Math.sin(angle);
+                const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
+                const dist = Math.hypot(mx - hx, my - hy);
+                if (dist < 12) {
+                    if (!updateCursor._wasOnTiltHandle) {
+                        console.log('Hovering tilt handle');
+                    }
+                    updateCursor._wasOnTiltHandle = true;
+                    canvas.style.cursor = 'grab';
+                    return;
+                }
             }
         }
-        // Check for line hover (move zone)
+        updateCursor._wasOnTiltHandle = false;
+        // Ball: check if mouse is inside any ball
         for (const a of objects) {
-            if (isNearLine(mx, my, a)) {
-                canvas.style.cursor = 'grab';
-                return;
+            if (a.type === 'ball') {
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                if (Math.hypot(mx - center.x, my - center.y) < r * 0.8) {
+                    canvas.style.cursor = 'grab';
+                    return;
+                }
+            }
+        }
+        // Player: ellipse hit test
+        for (const a of objects) {
+            if (a.type === 'player') {
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                const dx = mx - center.x, dy = my - center.y;
+                if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1) {
+                    canvas.style.cursor = 'grab';
+                    return;
+                }
+            }
+        }
+        // Arrow handles
+        for (const a of objects) {
+            if (a.type === 'arrow') {
+                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                if (isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, e.x, e.y)) {
+                    canvas.style.cursor = 'pointer';
+                    return;
+                }
+            }
+        }
+        // Arrow line
+        for (const a of objects) {
+            if (a.type === 'arrow') {
+                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                if (isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y })) {
+                    canvas.style.cursor = 'grab';
+                    return;
+                }
             }
         }
         canvas.style.cursor = '';
     }
+    canvas.removeEventListener('mousemove', updateCursor); // Remove old if present
     canvas.addEventListener('mousemove', updateCursor);
     canvas.addEventListener('mouseleave', function () { canvas.style.cursor = ''; });
 
+    // --- Ball/player move logic in mousedown ---
+    canvas.addEventListener('mousedown', function (e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        if (objectInsertMode) {
+            startPt = { x: mx, y: my };
+            const relStart = toRelative(mx, my);
+            if (objectInsertMode === 'arrow') {
+                currentObject = {
+                    type: 'arrow',
+                    rx1: relStart.rx, ry1: relStart.ry, rx2: relStart.rx, ry2: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor,
+                    head: defaultHead
+                };
+            } else if (objectInsertMode === 'ball') {
+                currentObject = {
+                    type: 'ball',
+                    rx: relStart.rx, ry: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor
+                };
+            } else if (objectInsertMode === 'player') {
+                currentObject = {
+                    type: 'player',
+                    rx: relStart.rx, ry: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor,
+                    rxLen: 32, ryLen: 18
+                };
+            }
+        } else {
+            // --- Player tilt handle hit test (before player move) ---
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'player' || !a.selected) return false;
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                // Compute handle position by rotating (0, -ry-20) by angle
+                const localX = 0, localY = -ry - 20;
+                const hx = center.x + localX * Math.cos(angle) - localY * Math.sin(angle);
+                const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
+                const dist = Math.hypot(mx - hx, my - hy);
+                return dist < 12;
+            });
+            if (dragObjectIndex !== -1) {
+                dragMode = 'rotate-player';
+                const a = objects[dragObjectIndex];
+                const center = toAbsolute(a.rx, a.ry);
+                dragOffset = { cx: center.x, cy: center.y, startAngle: a.rotation || 0 };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Ball: check if mouse is inside any ball
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'ball') return false;
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                dragMode = 'move-ball';
+                dragOffset = {
+                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
+                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
+                };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Player: check if mouse is inside any player (but not on tilt handle)
+            dragObjectIndex = objects.findIndex(a => {
+                if (a.type !== 'player') return false;
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                const dx = mx - center.x, dy = my - center.y;
+                // Also check not on tilt handle
+                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                const hx = center.x + Math.sin(angle) * 0 + Math.cos(angle) * (0) - Math.sin(angle) * (ry + 20);
+                const hy = center.y - Math.cos(angle) * (0) + Math.sin(angle) * (0) - Math.cos(angle) * (ry + 20);
+                if (Math.hypot(mx - hx, my - hy) < 16) return false;
+                return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                dragMode = 'move-player';
+                dragOffset = {
+                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
+                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
+                };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Check for handle hover (resize zone)
+            dragObjectIndex = objects.findIndex(a => {
+                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                return isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, e.x, e.y);
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                const a = objects[dragObjectIndex];
+                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                if (isNearHandle(mx, my, s.x, s.y)) {
+                    dragMode = 'resize-start';
+                } else {
+                    dragMode = 'resize-end';
+                }
+                dragOffset = { x: mx, y: my };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Check for line hover (move zone)
+            dragObjectIndex = objects.findIndex(a => {
+                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                return isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
+            });
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                const a = objects[dragObjectIndex];
+                a.selected = true;
+                dragMode = 'move';
+                dragOffset = { x: mx, y: my };
+                redrawAll();
+                updateArrowControlsFromSelection();
+                return;
+            }
+            // Deselect all if not clicking on any object
+            objects.forEach(a => a.selected = false);
+            redrawAll();
+            updateArrowControlsFromSelection();
+        }
+    });
+
+    // --- Utility: near tests ---
     function isNearHandle(mx, my, x, y) {
         return Math.hypot(mx - x, my - y) < 12;
     }
