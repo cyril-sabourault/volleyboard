@@ -1,0 +1,27 @@
+body {
+    margin: 0;
+    padding: 0;
+    background: #f8f8f8;
+    font-family: Arial, sans-serif;
+}
+
+#toolbar {
+    width: 100vw;
+    height: 60px;
+    background: #222;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+#court-canvas {
+    display: block;
+    margin: 40px auto;
+    background: #fff;
+    border: 2px solid #222;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    max-width: 100vw;
+    max-height: calc(100vh - 60px - 80px);
+}
