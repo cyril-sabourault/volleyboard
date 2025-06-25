@@ -150,3 +150,20 @@ body {
         top: 12px;
     }
 }
+
+/* Highlight toolbar button when active */
+#toolbar button.active {
+    background: #e0e7ef;
+    border: 2px solid #1976d2;
+    color: #1976d2;
+    box-shadow: 0 2px 8px 0 rgba(25, 118, 210, 0.08);
+    z-index: 1;
+}
+
+#toolbar button.active svg {
+    stroke: #1976d2;
+}
+
+#toolbar button {
+    transition: background 0.15s, border 0.15s, color 0.15s;
+}

@@ -90,11 +90,16 @@ window.onload = function () {
     // Toolbar button event (now rotate)
     const rotateBtn = document.getElementById('rotate-court');
     rotateBtn.addEventListener('click', function () {
-        // Before changing orientation, transform all arrows' coordinates (clockwise)
-        arrows.forEach(a => {
-            // Clockwise: (x, y) -> (1 - y, x)
-            [a.rx1, a.ry1] = [1 - a.ry1, a.rx1];
-            [a.rx2, a.ry2] = [1 - a.ry2, a.rx2];
+        // Transform arrows' coordinates (clockwise)
+        objects.forEach(a => {
+            if (a.type === 'arrow') {
+                // Clockwise: (x, y) -> (1 - y, x)
+                [a.rx1, a.ry1] = [1 - a.ry1, a.rx1];
+                [a.rx2, a.ry2] = [1 - a.ry2, a.rx2];
+            } else if (a.type === 'player' || a.type === 'ball') {
+                // Transform center point
+                [a.rx, a.ry] = [1 - a.ry, a.rx];
+            }
         });
         orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
         persistAndRedraw();
@@ -117,89 +122,196 @@ window.onload = function () {
         return { x: rx * canvas.width, y: ry * canvas.height };
     }
 
-    // --- Arrow Tool Logic ---
-    let arrows = [];
-    let currentArrow = null;
-    let dragMode = null; // 'move', 'resize-start', 'resize-end', or null
+    // --- Generalized Object Logic ---
+    let objects = [];
+    let currentObject = null;
+    let objectInsertMode = null; // 'arrow', 'ball', 'player', or null
+    let dragMode = null;
     let dragOffset = { x: 0, y: 0 };
-    let dragArrowIndex = -1;
+    let dragObjectIndex = -1;
 
-    // Arrow style controls
+    // Default style values for new objects
+    let defaultWidth = 4;
+    let defaultColor = '#d32f2f';
+    let defaultHead = true;
+
+    // Insert mode buttons
     const insertArrowBtn = document.getElementById('insert-arrow');
-    const arrowWidthSel = document.getElementById('arrow-width');
-    const arrowColorSel = document.getElementById('arrow-color');
-    const arrowHeadChk = document.getElementById('arrow-head');
-
-    // Defaults for new arrows
-    let defaultArrowWidth = 4;
-    let defaultArrowColor = '#d32f2f';
-    let defaultArrowHead = true;
-
-    let arrowInsertMode = false;
-
-    // Update style controls from selected arrow, or set defaults
-    function updateArrowControlsFromSelection() {
-        const sel = arrows.find(a => a.selected);
-        if (sel) {
-            arrowWidthSel.value = sel.width || 4;
-            arrowColorSel.value = sel.color || '#d32f2f';
-            arrowHeadChk.checked = sel.head !== false;
-        } else {
-            arrowWidthSel.value = defaultArrowWidth;
-            arrowColorSel.value = defaultArrowColor;
-            arrowHeadChk.checked = defaultArrowHead;
-        }
-    }
-
-    // When controls change, update selected arrow or defaults
-    arrowWidthSel.addEventListener('change', function () {
-        const val = parseInt(this.value);
-        const sel = arrows.find(a => a.selected);
-        if (sel) { sel.width = val; persistAndRedraw(); }
-        else defaultArrowWidth = val;
-    });
-    arrowColorSel.addEventListener('input', function () {
-        const val = this.value;
-        const sel = arrows.find(a => a.selected);
-        if (sel) { sel.color = val; persistAndRedraw(); }
-        else defaultArrowColor = val;
-    });
-    arrowHeadChk.addEventListener('change', function () {
-        const val = this.checked;
-        const sel = arrows.find(a => a.selected);
-        if (sel) { sel.head = val; persistAndRedraw(); }
-        else defaultArrowHead = val;
-    });
+    const insertBallBtn = document.getElementById('insert-ball');
+    const insertPlayerBtn = document.getElementById('insert-player');
+    const cursorBtn = document.getElementById('cursor-mode');
+    const clearBtn = document.getElementById('clear-state');
 
     insertArrowBtn.addEventListener('click', function () {
-        arrowInsertMode = true;
+        objectInsertMode = 'arrow';
         canvas.style.cursor = 'crosshair';
-        // Deselect all arrows
-        arrows.forEach(a => a.selected = false);
+        objects.forEach(o => o.selected = false);
+        updateArrowControlsFromSelection();
+        updateToolbarActiveButton();
+    });
+    insertBallBtn.addEventListener('click', function () {
+        objectInsertMode = 'ball';
+        canvas.style.cursor = 'crosshair';
+        objects.forEach(o => o.selected = false);
+        updateArrowControlsFromSelection();
+        updateToolbarActiveButton();
+    });
+    insertPlayerBtn.addEventListener('click', function () {
+        objectInsertMode = 'player';
+        canvas.style.cursor = 'crosshair';
+        objects.forEach(o => o.selected = false);
+        updateArrowControlsFromSelection();
+        updateToolbarActiveButton();
+    });
+
+    cursorBtn.addEventListener('click', function () {
+        objectInsertMode = null;
+        canvas.style.cursor = '';
+        [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
+        cursorBtn.classList.add('active');
+        objects.forEach(o => o.selected = false);
         updateArrowControlsFromSelection();
     });
 
+    clearBtn.addEventListener('click', function () {
+        objects = [];
+        localStorage.removeItem('volleyCourtState');
+        persistAndRedraw();
+        updateDebug();
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', function (e) {
+        // Listen for Escape key to switch to cursor mode
+        if (e.key === 'Escape') {
+            objectInsertMode = null;
+            canvas.style.cursor = '';
+            [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
+            cursorBtn.classList.add('active');
+            objects.forEach(o => o.selected = false);
+            updateArrowControlsFromSelection();
+        }
+    });
+
+    // Helper to update toolbar button active state
+    function updateToolbarActiveButton() {
+        [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
+        if (objectInsertMode === 'arrow') insertArrowBtn.classList.add('active');
+        else if (objectInsertMode === 'ball') insertBallBtn.classList.add('active');
+        else if (objectInsertMode === 'player') insertPlayerBtn.classList.add('active');
+        else cursorBtn.classList.add('active');
+    }
+
+    // Utility: Deselect all objects except one (by index)
+    function selectOnlyObject(idx) {
+        objects.forEach((o, i) => o.selected = (i === idx));
+    }
+
+    const widthSel = document.getElementById('arrow-width');
+    const colorSel = document.getElementById('arrow-color');
+    const headChk = document.getElementById('arrow-head');
+
+    // Update style controls from selected object, or set defaults
+    function updateArrowControlsFromSelection() {
+        const sel = objects.find(a => a.selected);
+        if (sel) {
+            widthSel.value = sel.width || defaultWidth;
+            colorSel.value = sel.color || defaultColor;
+            headChk.checked = sel.head !== false;
+        } else {
+            widthSel.value = defaultWidth;
+            colorSel.value = defaultColor;
+            headChk.checked = defaultHead;
+        }
+    }
+
+    // When controls change, update selected object or defaults
+    widthSel.addEventListener('change', function () {
+        const val = parseInt(this.value);
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.width = val; persistAndRedraw(); }
+        else defaultWidth = val;
+    });
+    colorSel.addEventListener('input', function () {
+        const val = this.value;
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.color = val; persistAndRedraw(); }
+        else defaultColor = val;
+    });
+    headChk.addEventListener('change', function () {
+        const val = this.checked;
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.head = val; persistAndRedraw(); }
+        else defaultHead = val;
+    });
+
     // Update drawArrows to use relative coordinates
-    function drawArrows() {
+    function drawObjects() {
         ctx.save();
-        arrows.forEach(arrow => {
-            const start = toAbsolute(arrow.rx1, arrow.ry1);
-            const end = toAbsolute(arrow.rx2, arrow.ry2);
-            ctx.strokeStyle = arrow.color || '#d32f2f';
-            ctx.lineWidth = arrow.width || 4;
-            ctx.fillStyle = arrow.color || '#d32f2f';
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(end.x, end.y);
-            ctx.stroke();
-            if (arrow.head !== false) {
-                drawArrowhead(start.x, start.y, end.x, end.y, arrow.color || '#d32f2f');
+        for (const obj of objects) {
+            if (obj.type === 'arrow') {
+                const start = toAbsolute(obj.rx1, obj.ry1);
+                const end = toAbsolute(obj.rx2, obj.ry2);
+                ctx.strokeStyle = obj.color || '#d32f2f';
+                ctx.lineWidth = obj.width || 4;
+                ctx.fillStyle = obj.color || '#d32f2f';
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.stroke();
+                if (obj.head !== false) {
+                    drawArrowhead(start.x, start.y, end.x, end.y, obj.color || '#d32f2f');
+                }
+                if (obj.selected) {
+                    drawHandle(start.x, start.y);
+                    drawHandle(end.x, end.y);
+                }
+            } else if (obj.type === 'ball') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                const r = (obj.width || 20) / 2;
+                ctx.save();
+                ctx.translate(center.x, center.y);
+                ctx.rotate(obj.rotation || 0); // Use rotation property, default 0
+                ctx.strokeStyle = obj.color || '#1976d2';
+                ctx.lineWidth = obj.width || 4;
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, 2 * Math.PI);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.stroke();
+                // Simple volleyball pattern
+                ctx.strokeStyle = obj.color || '#1976d2';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.arc(0, 0, r, Math.PI, 2 * Math.PI);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(0, 0, r, r * 0.5, 0, 0, 2 * Math.PI);
+                ctx.stroke();
+                if (obj.selected) drawHandle(0, 0);
+                ctx.restore();
+            } else if (obj.type === 'player') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
+                let angle = 0;
+                if (orientation === 'horizontal') angle = Math.PI / 2;
+                ctx.save();
+                ctx.translate(center.x, center.y);
+                ctx.rotate((obj.rotation || 0) + angle); // Use rotation property, default 0, plus orientation
+                ctx.strokeStyle = obj.color || '#388e3c';
+                ctx.lineWidth = obj.width || 4;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, rx, ry, 0, 0, 2 * Math.PI);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.stroke();
+                if (obj.selected) drawHandle(0, 0);
+                ctx.restore();
             }
-            if (arrow.selected) {
-                drawHandle(start.x, start.y);
-                drawHandle(end.x, end.y);
-            }
-        });
+        }
         ctx.restore();
     }
 
@@ -232,53 +344,14 @@ window.onload = function () {
 
     function redrawAll() {
         redraw();
-        drawArrows();
-        updateDebug();
+        drawObjects();
     }
-
-    // --- Debug and Clear State ---
-    // Add debug output for orientation
-    function updateDebug() {
-        let dbg = document.getElementById('debug-orientation');
-        if (!dbg) {
-            dbg = document.createElement('div');
-            dbg.id = 'debug-orientation';
-            dbg.style.position = 'fixed';
-            dbg.style.bottom = '8px';
-            dbg.style.right = '16px';
-            dbg.style.background = 'rgba(0,0,0,0.7)';
-            dbg.style.color = '#fff';
-            dbg.style.padding = '4px 12px';
-            dbg.style.borderRadius = '6px';
-            dbg.style.fontSize = '1em';
-            dbg.style.zIndex = 1000;
-            document.body.appendChild(dbg);
-        }
-        dbg.textContent = 'Orientation: ' + orientation;
-    }
-
-    // Add clear state button to toolbar
-    const toolbar = document.getElementById('toolbar');
-    const clearBtn = document.createElement('button');
-    clearBtn.id = 'clear-state';
-    clearBtn.title = 'Clear Court';
-    clearBtn.style.marginLeft = '16px';
-    clearBtn.style.display = 'flex';
-    clearBtn.style.alignItems = 'center';
-    clearBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7" width="10" height="9" rx="2" stroke="#222" stroke-width="2"/><path d="M3 7h14" stroke="#222" stroke-width="2"/><path d="M8 7V5a2 2 0 0 1 4 0v2" stroke="#222" stroke-width="2"/></svg><span style="margin-left:6px;">Clear</span>`;
-    toolbar.appendChild(clearBtn);
-    clearBtn.addEventListener('click', function () {
-        arrows = [];
-        localStorage.removeItem('volleyCourtState');
-        persistAndRedraw();
-        updateDebug();
-    });
 
     // --- Local Storage Persistence ---
     function saveCourtState() {
         const state = {
             orientation,
-            arrows: arrows.map(a => ({ ...a, selected: false })) // don't persist selection
+            objects: objects.map(a => ({ ...a, selected: false })) // don't persist selection
         };
         localStorage.setItem('volleyCourtState', JSON.stringify(state));
     }
@@ -291,7 +364,7 @@ window.onload = function () {
         try {
             const state = JSON.parse(stateStr);
             orientation = state.orientation || 'horizontal';
-            if (Array.isArray(state.arrows)) arrows = state.arrows;
+            if (Array.isArray(state.objects)) objects = state.objects;
         } catch (e) { orientation = 'horizontal'; }
     }
 
@@ -304,39 +377,38 @@ window.onload = function () {
     function persistAndRedraw() {
         saveCourtState();
         redrawAll();
-        updateDebug();
     }
 
-    arrowWidthSel.addEventListener('change', function () {
+    widthSel.addEventListener('change', function () {
         const val = parseInt(this.value);
-        const sel = arrows.find(a => a.selected);
+        const sel = objects.find(a => a.selected);
         if (sel) { sel.width = val; persistAndRedraw(); }
-        else defaultArrowWidth = val;
+        else defaultWidth = val;
     });
-    arrowColorSel.addEventListener('input', function () {
+    colorSel.addEventListener('input', function () {
         const val = this.value;
-        const sel = arrows.find(a => a.selected);
+        const sel = objects.find(a => a.selected);
         if (sel) { sel.color = val; persistAndRedraw(); }
-        else defaultArrowColor = val;
+        else defaultColor = val;
     });
-    arrowHeadChk.addEventListener('change', function () {
+    headChk.addEventListener('change', function () {
         const val = this.checked;
-        const sel = arrows.find(a => a.selected);
+        const sel = objects.find(a => a.selected);
         if (sel) { sel.head = val; persistAndRedraw(); }
-        else defaultArrowHead = val;
+        else defaultHead = val;
     });
     canvas.addEventListener('mouseup', function (e) {
-        if (arrowInsertMode && currentArrow) {
-            arrows.push(currentArrow);
-            currentArrow = null;
+        if (objectInsertMode && currentObject) {
+            objects.push(currentObject);
+            currentObject = null;
             startPt = null;
-            arrowInsertMode = false;
-            canvas.style.cursor = '';
+            // Do NOT set objectInsertMode = false; keep insert mode active
+            // Do NOT reset canvas.style.cursor here
             persistAndRedraw();
             updateArrowControlsFromSelection();
         } else if (dragMode) {
             dragMode = null;
-            dragArrowIndex = -1;
+            dragObjectIndex = -1;
         }
     });
 
@@ -346,24 +418,42 @@ window.onload = function () {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
-        if (arrowInsertMode) {
+        if (objectInsertMode) {
             startPt = { x: mx, y: my };
             const relStart = toRelative(mx, my);
-            currentArrow = {
-                rx1: relStart.rx, ry1: relStart.ry, rx2: relStart.rx, ry2: relStart.ry, selected: true,
-                width: defaultArrowWidth,
-                color: defaultArrowColor,
-                head: defaultArrowHead
-            };
+            if (objectInsertMode === 'arrow') {
+                currentObject = {
+                    type: 'arrow',
+                    rx1: relStart.rx, ry1: relStart.ry, rx2: relStart.rx, ry2: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor,
+                    head: defaultHead
+                };
+            } else if (objectInsertMode === 'ball') {
+                currentObject = {
+                    type: 'ball',
+                    rx: relStart.rx, ry: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor
+                };
+            } else if (objectInsertMode === 'player') {
+                currentObject = {
+                    type: 'player',
+                    rx: relStart.rx, ry: relStart.ry, selected: true,
+                    width: defaultWidth,
+                    color: defaultColor,
+                    rxLen: 32, ryLen: 18
+                };
+            }
         } else {
             // Check for handle hover (resize zone)
-            dragArrowIndex = arrows.findIndex(a => {
+            dragObjectIndex = objects.findIndex(a => {
                 const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
                 return isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, e.x, e.y);
             });
-            if (dragArrowIndex !== -1) {
-                selectOnlyArrow(dragArrowIndex);
-                const a = arrows[dragArrowIndex];
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                const a = objects[dragObjectIndex];
                 const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
                 if (isNearHandle(mx, my, s.x, s.y)) {
                     dragMode = 'resize-start';
@@ -376,13 +466,13 @@ window.onload = function () {
                 return;
             }
             // Check for line hover (move zone)
-            dragArrowIndex = arrows.findIndex(a => {
+            dragObjectIndex = objects.findIndex(a => {
                 const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
                 return isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
             });
-            if (dragArrowIndex !== -1) {
-                selectOnlyArrow(dragArrowIndex);
-                const a = arrows[dragArrowIndex];
+            if (dragObjectIndex !== -1) {
+                selectOnlyObject(dragObjectIndex);
+                const a = objects[dragObjectIndex];
                 a.selected = true;
                 dragMode = 'move';
                 dragOffset = { x: mx, y: my };
@@ -391,7 +481,7 @@ window.onload = function () {
                 return;
             }
             // Deselect all if not clicking on any arrow
-            arrows.forEach(a => a.selected = false);
+            objects.forEach(a => a.selected = false);
             redrawAll();
             updateArrowControlsFromSelection();
         }
@@ -401,14 +491,14 @@ window.onload = function () {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
-        if (arrowInsertMode && startPt && currentArrow) {
+        if (objectInsertMode && startPt && currentObject) {
             const relEnd = toRelative(mx, my);
-            currentArrow.rx2 = relEnd.rx;
-            currentArrow.ry2 = relEnd.ry;
+            currentObject.rx2 = relEnd.rx;
+            currentObject.ry2 = relEnd.ry;
             redrawAll();
             // Draw preview
-            const s = toAbsolute(currentArrow.rx1, currentArrow.ry1);
-            const ept = toAbsolute(currentArrow.rx2, currentArrow.ry2);
+            const s = toAbsolute(currentObject.rx1, currentObject.ry1);
+            const ept = toAbsolute(currentObject.rx2, currentObject.ry2);
             ctx.save();
             ctx.strokeStyle = '#1976d2';
             ctx.lineWidth = 2;
@@ -418,8 +508,8 @@ window.onload = function () {
             ctx.stroke();
             drawArrowhead(s.x, s.y, ept.x, ept.y);
             ctx.restore();
-        } else if (dragMode && dragArrowIndex !== -1) {
-            const a = arrows[dragArrowIndex];
+        } else if (dragMode && dragObjectIndex !== -1) {
+            const a = objects[dragObjectIndex];
             const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
             if (dragMode === 'move') {
                 const dx = mx - dragOffset.x;
@@ -440,17 +530,17 @@ window.onload = function () {
     });
 
     canvas.addEventListener('mouseup', function (e) {
-        if (arrowInsertMode && currentArrow) {
-            arrows.push(currentArrow);
-            currentArrow = null;
+        if (objectInsertMode && currentObject) {
+            objects.push(currentObject);
+            currentObject = null;
             startPt = null;
-            arrowInsertMode = false;
-            canvas.style.cursor = '';
+            // Do NOT set objectInsertMode = false; keep insert mode active
+            // Do NOT reset canvas.style.cursor here
             persistAndRedraw();
             updateArrowControlsFromSelection();
         } else if (dragMode) {
             dragMode = null;
-            dragArrowIndex = -1;
+            dragObjectIndex = -1;
         }
     });
 
@@ -459,12 +549,12 @@ window.onload = function () {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
-        if (arrowInsertMode) {
+        if (objectInsertMode) {
             canvas.style.cursor = 'crosshair';
             return;
         }
         // Check for handle hover (resize zone)
-        for (const a of arrows) {
+        for (const a of objects) {
             if (isNearHandle(mx, my, a.x1, a.y1) || isNearHandle(mx, my, a.x2, a.y2)) {
                 // Determine direction for better UX (optional: use pointer for now)
                 canvas.style.cursor = 'pointer';
@@ -472,7 +562,7 @@ window.onload = function () {
             }
         }
         // Check for line hover (move zone)
-        for (const a of arrows) {
+        for (const a of objects) {
             if (isNearLine(mx, my, a)) {
                 canvas.style.cursor = 'grab';
                 return;
@@ -506,11 +596,9 @@ window.onload = function () {
     const origRedraw = redraw;
     redraw = function () {
         origRedraw();
-        drawArrows();
+        drawObjects();
     };
 
-    // Utility: Deselect all arrows except one (by index)
-    function selectOnlyArrow(idx) {
-        arrows.forEach((a, i) => a.selected = (i === idx));
-    }
+    // Call on load to set initial state
+    updateToolbarActiveButton();
 };

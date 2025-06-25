@@ -23,17 +23,32 @@
             <span></span>
         </div>
     </nav>
-    <div id="toolbar">
-        <button id="rotate-court" title="Rotate Court" style="display:flex;align-items:center;gap:6px;">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"
-                style="vertical-align:middle;">
-                <path d="M10 3v2.5A5.5 5.5 0 1 1 4.5 11" stroke="#222" stroke-width="2" fill="none" />
-                <polygon points="10,1 13,5 7,5" fill="#222" />
+    <div id="toolbar" style="display:flex;align-items:center;justify-content:flex-start;">
+        <!-- Cursor mode button at the beginning of the toolbar -->
+        <button id="cursor-mode" title="Cursor Mode (select/move objects)"
+            style="display:flex;align-items:center;gap:4px;margin-right:12px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 2l5.5 15 2-6 6-2L3 2z" stroke="#222" stroke-width="2" fill="#fff" />
             </svg>
-            <span style="font-size:0.95em;">Rotate Court</span>
+            <span style="font-size:0.95em;margin-left:6px;">Cursor</span>
         </button>
-        <button id="insert-arrow" title="Insert Arrow"
-            style="margin-left:12px;display:flex;align-items:center;gap:4px;">
+        <button id="insert-ball" title="Add Ball" style="display:flex;align-items:center;gap:4px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="8" stroke="#222" stroke-width="2" fill="#fff" />
+                <path d="M2 10a8 8 0 0 0 16 0" stroke="#222" stroke-width="1.2" fill="none" />
+                <path d="M10 2a8 8 0 0 1 0 16" stroke="#222" stroke-width="1.2" fill="none" />
+                <path d="M4 4c4 2 8 2 12 0" stroke="#222" stroke-width="1.2" fill="none" />
+                <path d="M4 16c4-2 8-2 12 0" stroke="#222" stroke-width="1.2" fill="none" />
+            </svg>
+            <span style="font-size:0.95em;">Ball</span>
+        </button>
+        <button id="insert-player" title="Add Player" style="margin-left:8px;display:flex;align-items:center;gap:4px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <ellipse cx="10" cy="10" rx="7" ry="4" stroke="#222" stroke-width="2" fill="#fff" />
+            </svg>
+            <span style="font-size:0.95em;">Player</span>
+        </button>
+        <button id="insert-arrow" title="Insert Arrow" style="margin-left:8px;display:flex;align-items:center;gap:4px;">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <line x1="3" y1="10" x2="15" y2="10" stroke="#222" stroke-width="2" />
                 <polygon points="15,6 19,10 15,14" fill="#222" />
@@ -56,6 +71,24 @@
             <input type="checkbox" id="arrow-head" checked style="width:18px; height:18px;" />
             Pointy End
         </label>
+        <button id="clear-state" title="Clear Court" style="margin-left:16px;display:flex;align-items:center;gap:6px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="5" y="7" width="10" height="9" rx="2" stroke="#222" stroke-width="2" />
+                <path d="M3 7h14" stroke="#222" stroke-width="2" />
+                <path d="M8 7V5a2 2 0 0 1 4 0v2" stroke="#222" stroke-width="2" />
+            </svg>
+            <span style="font-size:0.95em;">Clear</span>
+        </button>
+        <span style="flex:1 1 auto;"></span>
+        <button id="rotate-court" title="Rotate Court"
+            style="display:flex;align-items:center;gap:6px; margin-left:auto;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style="vertical-align:middle;">
+                <path d="M10 3v2.5A5.5 5.5 0 1 1 4.5 11" stroke="#222" stroke-width="2" fill="none" />
+                <polygon points="10,1 13,5 7,5" fill="#222" />
+            </svg>
+            <span style="font-size:0.95em;">Rotate Court</span>
+        </button>
     </div>
     <canvas id="court-canvas"></canvas>
     <script src="static/app.js"></script>
