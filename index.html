@@ -24,7 +24,38 @@
         </div>
     </nav>
     <div id="toolbar">
-        <button id="toggle-orientation">Switch to Vertical View</button>
+        <button id="rotate-court" title="Rotate Court" style="display:flex;align-items:center;gap:6px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"
+                style="vertical-align:middle;">
+                <path d="M10 3v2.5A5.5 5.5 0 1 1 4.5 11" stroke="#222" stroke-width="2" fill="none" />
+                <polygon points="10,1 13,5 7,5" fill="#222" />
+            </svg>
+            <span style="font-size:0.95em;">Rotate Court</span>
+        </button>
+        <button id="insert-arrow" title="Insert Arrow"
+            style="margin-left:12px;display:flex;align-items:center;gap:4px;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="3" y1="10" x2="15" y2="10" stroke="#222" stroke-width="2" />
+                <polygon points="15,6 19,10 15,14" fill="#222" />
+            </svg>
+            <span style="font-size:0.95em;">Arrow</span>
+        </button>
+        <label style="margin-left:16px; font-size:0.95em;">Width
+            <select id="arrow-width" style="margin-left:4px;">
+                <option value="2">2px</option>
+                <option value="4" selected>4px</option>
+                <option value="6">6px</option>
+                <option value="8">8px</option>
+            </select>
+        </label>
+        <label style="margin-left:16px; font-size:0.95em;">Color
+            <input type="color" id="arrow-color" value="#d32f2f"
+                style="vertical-align:middle; margin-left:4px; width:28px; height:28px; border:none; background:none;" />
+        </label>
+        <label style="margin-left:16px; font-size:0.95em; display:inline-flex; align-items:center; gap:4px;">
+            <input type="checkbox" id="arrow-head" checked style="width:18px; height:18px;" />
+            Pointy End
+        </label>
     </div>
     <canvas id="court-canvas"></canvas>
     <script src="static/app.js"></script>
