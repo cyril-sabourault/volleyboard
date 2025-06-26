@@ -1,12 +1,27 @@
-# VolleyBoard
+# [VolleyBoard][github-pages-link]
 
-This is a volleyball strategy board web app. Hosted via GitHub Pages.
+[Live demo][github-pages-link]
 
-## How to deploy on GitHub Pages
+This is a volleyball strategy board web app. Hosted via GitHub Pages.  
+It allows users to create and manipulate volleyball formations, including players and arrows, on a virtual court.
 
-1. Push this repository to GitHub.
-2. In your repository settings, set GitHub Pages to serve from the `main` branch and `/` (root) directory.
-3. Access your site at `https://cyril-sabourault.github.io/volleyboard/`.
+## Features
+
+- Create and edit volleyball formations:
+  - Add players, balls and arrows to the court
+  - Customizable player and arrow properties
+
+- User-friendly interface with drag-and-drop functionality
+- Keyboard shortcuts for quick actions
+- Responsive design for various screen sizes
+- Boards are persisted across page reloads
+
+  ### Future features
+
+- Save and load formations
+- Share formations via URL
+- Improved mobile compatibility
+- Login functionality for saving boards to user accounts
 
 ## Project Structure
 
@@ -14,4 +29,7 @@ This is a volleyball strategy board web app. Hosted via GitHub Pages.
 - `static/app.js` - Main JavaScript
 - `static/styles.css` - Stylesheet
 
-No build step is required. All files are static and ready for deployment.
+No build step required. All files are static and ready for deployment.  
+Website is hosted on GitHub Pages
+
+[github-pages-link]: https://cyril-sabourault.github.io/volleyboard

@@ -1,17 +1,36 @@
 # todo
 
-- add favicon
+## Short term
 
 - ability to tilt players
 
-- shortcut to add players to the court by double clicking on the court
-- shortcut with alt to duplicate an existing object
+- update court height to fit in view with the new navbar
 
-- after clicking the player button, one click on the court insert a default player at the mouse position
-- after clicking the player button, a click and drag should allow the user to place a different size player
+- add favicon
 
-- remove one object by right clicking or pressing delete / backspace
+- undo and redo buttons? complexity?
 
-- update view height with the new navbar
+## Medium term
+
+- add popups
+
+- share board via URL with state encoded in the URL
+
+- documente shortcuts in help section
+
+## Long term
+
+- add layers system?
 
 - add library of typical systems: 5/1 in position 1, 2, 3, …
+
+- implement login
+- save board to account
+- give a name to the board
+
+- mobile compatibility:
+  - handle touch events
+  - adapt the UI to fit on a small screen
+  - add a default minimum arrow size when only clicking (which direction?)
+
+- revamp design
