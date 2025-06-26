@@ -180,11 +180,18 @@ window.onload = function () {
         objects = [];
         localStorage.removeItem('volleyCourtState');
         persistAndRedraw();
-        updateDebug();
     });
 
     // Keyboard shortcuts
     window.addEventListener('keydown', function (e) {
+        // Listen for Shift key to enter arrow insert mode
+        if (e.key === 'Shift' && !objectInsertMode) {
+            objectInsertMode = 'arrow';
+            canvas.style.cursor = 'crosshair';
+            objects.forEach(o => o.selected = false);
+            updateArrowControlsFromSelection();
+            updateToolbarActiveButton();
+        }
         // Listen for Escape key to switch to cursor mode
         if (e.key === 'Escape') {
             objectInsertMode = null;
@@ -201,6 +208,14 @@ window.onload = function () {
                 objects.splice(idx, 1);
                 persistAndRedraw();
             }
+        }
+    });
+    window.addEventListener('keyup', function (e) {
+        // Only exit arrow insert mode if it was entered by Shift (not by button), and not currently drawing
+        if (e.key === 'Shift' && objectInsertMode === 'arrow' && !currentObject) {
+            objectInsertMode = null;
+            canvas.style.cursor = '';
+            updateToolbarActiveButton();
         }
     });
 
@@ -337,78 +352,67 @@ window.onload = function () {
                 ctx.fillStyle = '#fff';
                 ctx.fill();
                 ctx.stroke();
-                // --- Draw grab area border for player (ellipse) ---
+                // --- Draw grab area border for player (square instead of ellipse) ---
                 if (showGrabAreas) {
                     ctx.save();
+                    const size = Math.max(rx, ry) * 2 + 8; // Make square large enough
                     ctx.beginPath();
-                    ctx.ellipse(0, 0, rx, ry, 0, 0, 2 * Math.PI);
-                    ctx.strokeStyle = 'rgba(0,128,255,0.4)';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([4, 4]);
+                    ctx.rect(-size / 2, -size / 2, size, size);
+                    ctx.strokeStyle = 'rgba(0,128,255,0.85)';
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([6, 4]);
                     ctx.stroke();
                     ctx.setLineDash([]);
                     ctx.restore();
                 }
-                // Draw tilt handle if selected
+                // Draw tilt handle if selected (draw last for foreground)
                 if (obj.selected) {
-                    // Place handle above ellipse (0, -ry - 20)
+                    ctx.restore(); // End player drawing context
+                    ctx.save();
+                    ctx.translate(center.x, center.y);
+                    ctx.rotate((obj.rotation || 0) + angle);
                     drawTiltHandle(0, -ry - 20);
-                    // --- Draw grab area border for tilt handle ---
                     if (showGrabAreas) {
                         ctx.save();
                         ctx.beginPath();
-                        ctx.arc(0, -ry - 20, 12, 0, 2 * Math.PI);
-                        ctx.strokeStyle = 'rgba(0,128,255,0.4)';
-                        ctx.lineWidth = 2;
-                        ctx.setLineDash([4, 4]);
+                        ctx.arc(0, -ry - 20, 16, 0, 2 * Math.PI);
+                        ctx.strokeStyle = 'rgba(0,128,255,0.85)';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([6, 4]);
                         ctx.stroke();
                         ctx.setLineDash([]);
                         ctx.restore();
                     }
+                    ctx.restore();
+                } else {
+                    ctx.restore();
                 }
-                ctx.restore();
             }
         }
         // Draw all balls last (topmost)
         for (const obj of objects) {
             if (obj.type !== 'ball') continue;
             const center = toAbsolute(obj.rx, obj.ry);
-            const r = (obj.width || 20) / 2 * 20;
+            const r = (obj.width || 20) / 3 * 20;
             ctx.save();
             ctx.translate(center.x, center.y);
             ctx.rotate(obj.rotation || 0);
-            ctx.scale(r / 10, r / 10);
-            ctx.lineWidth = 2 / (r / 10);
+            // Draw SVG volleyball icon
+            // SVG viewBox is 0 0 512 512, so scale to fit r*2
+            const scale = (r * 2) / 512;
+            ctx.scale(scale, scale);
+            ctx.lineWidth = 2 / scale;
             ctx.strokeStyle = obj.color || '#1976d2';
+            const vbCenter = 256;
+            ctx.translate(-vbCenter, -vbCenter);
+            // Fill background with white circle
+            ctx.beginPath();
+            ctx.arc(256, 256, 256, 0, 2 * Math.PI);
             ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(0, 0, 8, 0, 2 * Math.PI);
             ctx.fill();
-            ctx.stroke();
-            // --- Draw grab area border for ball ---
-            if (showGrabAreas) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(0, 0, 8 * 0.8, 0, 2 * Math.PI);
-                ctx.strokeStyle = 'rgba(0,128,255,0.4)';
-                ctx.lineWidth = 2 / (r / 10);
-                ctx.setLineDash([4, 4]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.restore();
-            }
-            ctx.lineWidth = 1.2 / (r / 10);
-            ctx.beginPath();
-            ctx.arc(0, 0, 8, Math.PI, 2 * Math.PI);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(0, 0, 8, 0, Math.PI);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(-6, -6); ctx.bezierCurveTo(-2, -5, 2, -5, 6, -6); ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(-6, 6); ctx.bezierCurveTo(-2, 5, 2, 5, 6, 6); ctx.stroke();
-            // No handle for ball
+            const ballPath = new Path2D("M509.568,222.003c-0.051-0.265-0.026-0.538-0.094-0.802C496.58,127.59,432.563,47.044,341.871,14.763c-4.429-1.587-9.318,0.734-10.897,5.171c-1.579,4.446,0.734,9.318,5.18,10.897c74.411,26.496,129.527,87.834,149.973,161.638C432.256,134.093,362.01,93.44,284.638,76.049c8.149-19.985,18.253-39.194,30.353-57.293c1.621-2.415,1.894-5.487,0.734-8.149c-1.152-2.662-3.584-4.548-6.451-5.018C307.866,5.367,274.551,0,256,0C197.291,0,143.164,19.917,99.925,53.291c-0.282,0.23-0.597,0.401-0.853,0.666C38.852,100.838,0,173.943,0,256c0,16.444,1.579,32.913,4.676,48.939c0.794,4.079,4.361,6.912,8.371,6.912c0.538,0,1.084-0.051,1.63-0.154c4.634-0.896,7.654-5.376,6.758-10.001c-2.901-14.959-4.369-30.336-4.369-45.696c0-65.263,26.325-124.476,68.89-167.646c-23.637,75.87-23.748,157.065-0.12,232.806c-21.385,2.935-43.068,3.797-64.785,2.355c-2.816-0.222-5.547,1.033-7.287,3.26c-1.732,2.219-2.261,5.163-1.408,7.851C46.191,440.721,144.111,512,256,512c61.372,0,120.738-22.059,167.159-62.106c3.567-3.081,3.968-8.465,0.887-12.041c-3.081-3.567-8.465-3.959-12.032-0.887c-43.332,37.385-98.739,57.967-156.015,57.967c-20.804,0-41.045-2.782-60.45-7.791c77.645-17.425,148.122-57.95,201.967-116.361c13.235,17.05,24.815,35.396,34.432,54.929c1.246,2.534,3.661,4.284,6.46,4.676c0.401,0.06,0.802,0.085,1.195,0.085c2.381,0,4.685-0.998,6.315-2.79C488.533,380.809,512,319.838,512,256C512,244.506,511.07,233.182,509.568,222.003z M256,17.067c10.317,0,26.359,1.92,37.598,3.465c-41.882,68.309-58.325,149.879-46.703,231.714c-20.591,16.137-42.607,29.705-65.655,40.55c-22.63-92.723-9.182-189.099,38.272-272.947C231.415,18.014,243.601,17.067,256,17.067z M112.273,65.271c25.079-18.944,53.99-33.058,85.35-40.96c-44.373,85.461-55.723,182.298-32.247,275.43c-20.267,8.286-41.199,14.515-62.532,18.611C76.51,235.819,79.787,146.355,112.273,65.271z M69.444,405.692c-15.292-19.132-27.81-40.789-36.762-64.546c80.154,2.167,159.386-24.286,224.623-75.383c24.269,9.754,47.027,22.042,67.951,36.574C256.196,368.367,165.897,404.932,69.444,405.692z M162.287,475.896c-29.423-12.45-55.919-30.652-78.029-53.495c96.307-4.25,185.95-42.829,254.933-109.807c17.323,13.414,33.178,28.433,47.386,44.86C328.183,421.623,248.909,463.556,162.287,475.896z M441.395,406.801c-38.187-70.656-100.719-125.884-177.587-156.817c-3.686-25.899-4.429-51.755-2.295-77.141c91.571,26.761,168.294,86.554,217.182,169.515C469.726,365.542,457.301,387.345,441.395,406.801z M485.794,321.195c-51.831-81.109-129.997-139.324-222.37-165.564c2.953-21.692,8.03-42.931,15.147-63.454c84.599,18.449,160.418,65.98,214.391,134.622c1.195,9.617,1.971,19.337,1.971,29.201C494.933,278.306,491.725,300.186,485.794,321.195z");
+            ctx.fill(ballPath);
+            ctx.stroke(ballPath);
             ctx.restore();
         }
         // --- Draw grab area border for arrow handles and line ---
@@ -419,13 +423,13 @@ window.onload = function () {
                 // Handles
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(s.x, s.y, 12, 0, 2 * Math.PI);
-                ctx.strokeStyle = 'rgba(0,128,255,0.4)';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([4, 4]);
+                ctx.arc(s.x, s.y, 16, 0, 2 * Math.PI); // Larger
+                ctx.strokeStyle = 'rgba(0,128,255,0.85)';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 4]);
                 ctx.stroke();
                 ctx.beginPath();
-                ctx.arc(e.x, e.y, 12, 0, 2 * Math.PI);
+                ctx.arc(e.x, e.y, 16, 0, 2 * Math.PI);
                 ctx.stroke();
                 ctx.setLineDash([]);
                 ctx.restore();
@@ -434,10 +438,44 @@ window.onload = function () {
                 ctx.beginPath();
                 ctx.moveTo(s.x, s.y);
                 ctx.lineTo(e.x, e.y);
-                ctx.strokeStyle = 'rgba(0,128,255,0.2)';
-                ctx.lineWidth = 20;
+                ctx.strokeStyle = 'rgba(0,128,255,0.25)';
+                ctx.lineWidth = 28;
                 ctx.stroke();
                 ctx.restore();
+            }
+        }
+        // --- Draw grab area for remove button ---
+        if (showGrabAreas) {
+            let idx = hoveredObjectIndex;
+            if (idx === -1) idx = objects.findIndex(o => o.selected);
+            if (idx !== -1) {
+                const obj = objects[idx];
+                let x, y, rBtn = 18; // Larger radius for grab area
+                if (obj.type === 'player') {
+                    const center = toAbsolute(obj.rx, obj.ry);
+                    let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
+                    x = center.x + rx * 0.7;
+                    y = center.y - ry * 0.7;
+                } else if (obj.type === 'ball') {
+                    const center = toAbsolute(obj.rx, obj.ry);
+                    x = center.x + 16;
+                    y = center.y - 16;
+                } else if (obj.type === 'arrow') {
+                    const s = toAbsolute(obj.rx1, obj.ry1), e = toAbsolute(obj.rx2, obj.ry2);
+                    x = (s.x + e.x) / 2 + 14;
+                    y = (s.y + e.y) / 2 - 14;
+                }
+                if (x !== undefined && y !== undefined) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(x, y, rBtn, 0, 2 * Math.PI);
+                    ctx.strokeStyle = 'rgba(255,0,0,0.7)'; // Red for remove
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([4, 2]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                }
             }
         }
         ctx.restore();
@@ -801,12 +839,13 @@ window.onload = function () {
                     color: defaultColor
                 };
             } else if (objectInsertMode === 'player') {
+                const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
                 currentObject = {
                     type: 'player',
                     rx: relStart.rx, ry: relStart.ry, selected: true,
                     width: defaultWidth,
                     color: defaultColor,
-                    rxLen: 32, ryLen: 18
+                    rxLen, ryLen
                 };
             }
         } else {
@@ -1096,12 +1135,13 @@ window.onload = function () {
                     color: defaultColor
                 };
             } else if (objectInsertMode === 'player') {
+                const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
                 currentObject = {
                     type: 'player',
                     rx: relStart.rx, ry: relStart.ry, selected: true,
                     width: defaultWidth,
                     color: defaultColor,
-                    rxLen: 32, ryLen: 18
+                    rxLen, ryLen
                 };
             }
         } else {
@@ -1210,6 +1250,19 @@ window.onload = function () {
         }
     });
 
+    function getProportionalPlayerSize(orientation) {
+        // because default view is horizontal, and players face the net
+        // so width of player is proportional to height of canvas
+        const playerWidth = canvas.height * 0.07; // 15% of height
+        const playerHeight = 18;
+
+        if (orientation === 'horizontal') {
+            return { rxLen: playerWidth, ryLen: playerHeight };
+        } else {
+            return { rxLen: playerWidth, ryLen: playerHeight };
+        }
+    }
+
     // Add player on double click shortcut
     canvas.addEventListener('dblclick', function (e) {
         // Only add if not in insert mode (so double click is a shortcut)
@@ -1218,13 +1271,15 @@ window.onload = function () {
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
             const rel = toRelative(mx, my);
+
             // Add a default player at the mouse position
+            const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
             objects.push({
                 type: 'player',
                 rx: rel.rx, ry: rel.ry, selected: false,
                 width: defaultWidth,
                 color: defaultColor,
-                rxLen: 32, ryLen: 18
+                rxLen, ryLen
             });
             persistAndRedraw();
         }
