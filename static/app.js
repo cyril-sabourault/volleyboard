@@ -194,6 +194,57 @@ window.onload = function () {
             objects.forEach(o => o.selected = false);
             updateArrowControlsFromSelection();
         }
+        // Remove selected object with Delete or Backspace
+        if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            const idx = objects.findIndex(o => o.selected);
+            if (idx !== -1) {
+                objects.splice(idx, 1);
+                persistAndRedraw();
+            }
+        }
+    });
+
+    // Remove object on right click (context menu)
+    canvas.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        // Check for object under mouse (player, ball, arrow)
+        let foundIdx = -1;
+        // Check balls first (topmost), then players, then arrows
+        foundIdx = objects.findIndex(a => {
+            if (a.type === 'ball') {
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
+            }
+            return false;
+        });
+        if (foundIdx === -1) {
+            foundIdx = objects.findIndex(a => {
+                if (a.type === 'player') {
+                    const center = toAbsolute(a.rx, a.ry);
+                    let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                    const dx = mx - center.x, dy = my - center.y;
+                    return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
+                }
+                return false;
+            });
+        }
+        if (foundIdx === -1) {
+            foundIdx = objects.findIndex(a => {
+                if (a.type === 'arrow') {
+                    const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                    return isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
+                }
+                return false;
+            });
+        }
+        if (foundIdx !== -1) {
+            objects.splice(foundIdx, 1);
+            persistAndRedraw();
+        }
     });
 
     // Helper to update toolbar button active state
@@ -442,6 +493,154 @@ window.onload = function () {
         drawObjects();
     }
 
+    // --- Remove button drawing utility ---
+    function drawRemoveButton(x, y, r = 11) { // smaller radius
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = '#444'; // dark grey background
+        ctx.strokeStyle = '#444'; // dark grey border
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+        // Draw cross
+        ctx.beginPath();
+        ctx.moveTo(x - r * 0.45, y - r * 0.45);
+        ctx.lineTo(x + r * 0.45, y + r * 0.45);
+        ctx.moveTo(x + r * 0.45, y - r * 0.45);
+        ctx.lineTo(x - r * 0.45, y + r * 0.45);
+        ctx.strokeStyle = '#bbbbbb'; // light grey cross
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Track hovered object and remove button hover
+    let hoveredObjectIndex = -1;
+    let hoveredRemoveButton = false;
+    canvas.addEventListener('mousemove', function (e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        hoveredObjectIndex = -1;
+        hoveredRemoveButton = false;
+        // Check balls first (topmost), then players, then arrows
+        hoveredObjectIndex = objects.findIndex(a => {
+            if (a.type === 'ball') {
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
+            }
+            return false;
+        });
+        if (hoveredObjectIndex === -1) {
+            hoveredObjectIndex = objects.findIndex(a => {
+                if (a.type === 'player') {
+                    const center = toAbsolute(a.rx, a.ry);
+                    let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                    const dx = mx - center.x, dy = my - center.y;
+                    return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
+                }
+                return false;
+            });
+        }
+        if (hoveredObjectIndex === -1) {
+            hoveredObjectIndex = objects.findIndex(a => {
+                if (a.type === 'arrow') {
+                    const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
+                    return isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
+                }
+                return false;
+            });
+        }
+        // Remove button position (closer to center)
+        let x, y, rBtn = 11;
+        if (hoveredObjectIndex !== -1) {
+            const obj = objects[hoveredObjectIndex];
+            if (obj.type === 'player') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
+                x = center.x + rx * 0.7;
+                y = center.y - ry * 0.7;
+            } else if (obj.type === 'ball') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                x = center.x + 16;
+                y = center.y - 16;
+            } else if (obj.type === 'arrow') {
+                const s = toAbsolute(obj.rx1, obj.ry1), e = toAbsolute(obj.rx2, obj.ry2);
+                x = (s.x + e.x) / 2 + 14;
+                y = (s.y + e.y) / 2 - 14;
+            }
+            if (x !== undefined && y !== undefined && Math.hypot(mx - x, my - y) < rBtn) {
+                hoveredRemoveButton = true;
+            }
+        }
+        redrawAll();
+    });
+
+    // --- Patch drawObjects to draw remove button ---
+    const origDrawObjects = drawObjects;
+    drawObjects = function () {
+        origDrawObjects();
+        // Draw remove button for hovered or selected object
+        let idx = hoveredObjectIndex;
+        if (idx === -1) idx = objects.findIndex(o => o.selected);
+        if (idx !== -1) {
+            const obj = objects[idx];
+            let x, y, rBtn = 11;
+            if (obj.type === 'player') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
+                x = center.x + rx * 0.7;
+                y = center.y - ry * 0.7;
+            } else if (obj.type === 'ball') {
+                const center = toAbsolute(obj.rx, obj.ry);
+                x = center.x + 16;
+                y = center.y - 16;
+            } else if (obj.type === 'arrow') {
+                const s = toAbsolute(obj.rx1, obj.ry1), e = toAbsolute(obj.rx2, obj.ry2);
+                x = (s.x + e.x) / 2 + 14;
+                y = (s.y + e.y) / 2 - 14;
+            }
+            if (x !== undefined && y !== undefined) {
+                drawRemoveButton(x, y, rBtn);
+            }
+        }
+    };
+
+    // --- Remove object on remove button click ---
+    canvas.addEventListener('mousedown', function (e) {
+        if (e.button !== 0) return; // Only left click
+        if (hoveredObjectIndex === -1) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        // Remove button position (closer to center)
+        const obj = objects[hoveredObjectIndex];
+        let x, y, rBtn = 11;
+        if (obj.type === 'player') {
+            const center = toAbsolute(obj.rx, obj.ry);
+            let rx = obj.rxLen || 32, ry = obj.ryLen || 18;
+            x = center.x + rx * 0.7;
+            y = center.y - ry * 0.7;
+        } else if (obj.type === 'ball') {
+            const center = toAbsolute(obj.rx, obj.ry);
+            x = center.x + 16;
+            y = center.y - 16;
+        } else if (obj.type === 'arrow') {
+            const s = toAbsolute(obj.rx1, obj.ry1), e = toAbsolute(obj.rx2, obj.ry2);
+            x = (s.x + e.x) / 2 + 14;
+            y = (s.y + e.y) / 2 - 14;
+        }
+        if (x !== undefined && y !== undefined && Math.hypot(mx - x, my - y) < rBtn) {
+            objects.splice(hoveredObjectIndex, 1);
+            hoveredObjectIndex = -1;
+            persistAndRedraw();
+            e.stopPropagation();
+            return;
+        }
+    }, true);
+
     // --- Local Storage Persistence ---
     function saveCourtState() {
         const state = {
@@ -517,6 +716,72 @@ window.onload = function () {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
+        // --- ALT/OPTION key for duplicate-drag ---
+        let altClone = false;
+        if (!objectInsertMode && (e.altKey || e.metaKey)) {
+            // Try to find an object under the mouse (same as normal drag logic)
+            let idx = -1;
+            // Player tilt handle (skip for clone)
+            // Ball
+            idx = objects.findIndex(a => {
+                if (a.type !== 'ball') return false;
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
+            });
+            if (idx === -1) {
+                idx = objects.findIndex(a => {
+                    if (a.type !== 'player') return false;
+                    const center = toAbsolute(a.rx, a.ry);
+                    let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                    const dx = mx - center.x, dy = my - center.y;
+                    // Not on tilt handle
+                    let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
+                    const hx = center.x + Math.sin(angle) * 0 + Math.cos(angle) * (0) - Math.sin(angle) * (ry + 20);
+                    const hy = center.y - Math.cos(angle) * (0) + Math.sin(angle) * (0) - Math.cos(angle) * (ry + 20);
+                    if (Math.hypot(mx - hx, my - hy) < 16) return false;
+                    return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
+                });
+            }
+            if (idx === -1) {
+                idx = objects.findIndex(a => {
+                    if (!a.rx1) return false;
+                    const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
+                    return isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, ept.x, ept.y) || isNearLine(mx, my, { x1: s.x, y1: s.y, x2: ept.x, y2: ept.y });
+                });
+            }
+            if (idx !== -1) {
+                // Clone the object
+                const orig = objects[idx];
+                const clone = JSON.parse(JSON.stringify(orig));
+                // Deselect all, select only clone
+                objects.forEach(o => o.selected = false);
+                clone.selected = true;
+                objects.push(clone);
+                dragObjectIndex = objects.length - 1;
+                // Set dragMode as appropriate
+                if (clone.type === 'ball') {
+                    dragMode = 'move-ball';
+                    dragOffset = {
+                        x: mx - toAbsolute(clone.rx, clone.ry).x,
+                        y: my - toAbsolute(clone.rx, clone.ry).y
+                    };
+                } else if (clone.type === 'player') {
+                    dragMode = 'move-player';
+                    dragOffset = {
+                        x: mx - toAbsolute(clone.rx, clone.ry).x,
+                        y: my - toAbsolute(clone.rx, clone.ry).y
+                    };
+                } else if (clone.type === 'arrow') {
+                    dragMode = 'move';
+                    dragOffset = { x: mx, y: my };
+                }
+                redrawAll();
+                updateArrowControlsFromSelection();
+                altClone = true;
+                return;
+            }
+        }
         if (objectInsertMode) {
             startPt = { x: mx, y: my };
             const relStart = toRelative(mx, my);
@@ -751,9 +1016,6 @@ window.onload = function () {
                 const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
                 const dist = Math.hypot(mx - hx, my - hy);
                 if (dist < 12) {
-                    if (!updateCursor._wasOnTiltHandle) {
-                        console.log('Hovering tilt handle');
-                    }
                     updateCursor._wasOnTiltHandle = true;
                     canvas.style.cursor = 'grab';
                     return;
@@ -945,6 +1207,26 @@ window.onload = function () {
             objects.forEach(a => a.selected = false);
             redrawAll();
             updateArrowControlsFromSelection();
+        }
+    });
+
+    // Add player on double click shortcut
+    canvas.addEventListener('dblclick', function (e) {
+        // Only add if not in insert mode (so double click is a shortcut)
+        if (!objectInsertMode) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const rel = toRelative(mx, my);
+            // Add a default player at the mouse position
+            objects.push({
+                type: 'player',
+                rx: rel.rx, ry: rel.ry, selected: false,
+                width: defaultWidth,
+                color: defaultColor,
+                rxLen: 32, ryLen: 18
+            });
+            persistAndRedraw();
         }
     });
 
