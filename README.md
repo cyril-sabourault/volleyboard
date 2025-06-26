@@ -18,6 +18,8 @@ It allows users to create and manipulate volleyball formations, including player
 
   ### Future features
 
+  [Todo List](TODO.md)
+
 - Save and load formations
 - Share formations via URL
 - Improved mobile compatibility

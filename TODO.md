@@ -1,4 +1,4 @@
-# todo
+# TODO List
 
 ## Short term
 
@@ -9,7 +9,7 @@
   - remove player
   - change player color
   - chose player name
-    - MB, OH, OP, S, L
+    - MB, OH, OP, S, L, DS
 
 - update court height to fit in view with the new navbar
 

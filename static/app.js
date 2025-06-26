@@ -555,7 +555,6 @@ window.onload = function () {
 
     // Track hovered object and remove button hover
     let hoveredObjectIndex = -1;
-    let hoveredRemoveButton = false;
     canvas.addEventListener('mousemove', function (e) {
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left;
@@ -1284,6 +1283,170 @@ window.onload = function () {
             persistAndRedraw();
         }
     });
+
+    canvas.addEventListener('mousemove', function (e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        if (objectInsertMode && startPt && currentObject) {
+            const relEnd = toRelative(mx, my);
+            currentObject.rx2 = relEnd.rx;
+            currentObject.ry2 = relEnd.ry;
+            redrawAll();
+            // Draw preview
+            const s = toAbsolute(currentObject.rx1, currentObject.ry1);
+            const ept = toAbsolute(currentObject.rx2, currentObject.ry2);
+            ctx.save();
+            ctx.strokeStyle = '#1976d2';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(s.x, s.y);
+            ctx.lineTo(ept.x, ept.y);
+            ctx.stroke();
+            drawArrowhead(s.x, s.y, ept.x, ept.y);
+            ctx.restore();
+        } else if (dragMode && dragObjectIndex !== -1) {
+            if (dragMode === 'move-ball' || dragMode === 'move-player') {
+                const a = objects[dragObjectIndex];
+                const newCenter = toRelative(mx - dragOffset.x, my - dragOffset.y);
+                a.rx = newCenter.rx;
+                a.ry = newCenter.ry;
+                persistAndRedraw();
+            } else {
+                const a = objects[dragObjectIndex];
+                const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
+                if (dragMode === 'move') {
+                    const dx = mx - dragOffset.x;
+                    const dy = my - dragOffset.y;
+                    const newS = toRelative(s.x + dx, s.y + dy);
+                    const newE = toRelative(ept.x + dx, ept.y + dy);
+                    a.rx1 = newS.rx; a.ry1 = newS.ry; a.rx2 = newE.rx; a.ry2 = newE.ry;
+                    dragOffset = { x: mx, y: my };
+                } else if (dragMode === 'resize-start') {
+                    const rel = toRelative(mx, my);
+                    a.rx1 = rel.rx; a.ry1 = rel.ry;
+                } else if (dragMode === 'resize-end') {
+                    const rel = toRelative(mx, my);
+                    a.rx2 = rel.rx; a.ry2 = rel.ry;
+                }
+                persistAndRedraw();
+            }
+        } else if (dragMode === 'rotate-player' && dragObjectIndex !== -1) {
+            const a = objects[dragObjectIndex];
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            // Calculate angle from center to mouse
+            const angle = Math.atan2(my - dragOffset.cy, mx - dragOffset.cx);
+            // Subtract orientation offset
+            let orient = (orientation === 'horizontal') ? Math.PI / 2 : 0;
+            a.rotation = angle - orient;
+            persistAndRedraw();
+        }
+    });
+
+    // --- Selection rectangle state ---
+    let selectRect = null; // {x1, y1, x2, y2}
+    let isSelecting = false;
+
+    // --- Selection area mouse events (cursor mode only) ---
+    canvas.addEventListener('mousedown', function (e) {
+        if (objectInsertMode || e.button !== 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        // Only start selection if not on any object
+        let onObject = false;
+        for (const a of objects) {
+            if (a.type === 'ball') {
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                if (Math.hypot(mx - center.x, my - center.y) < r * 0.8) { onObject = true; break; }
+            } else if (a.type === 'player') {
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                const dx = mx - center.x, dy = my - center.y;
+                if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1) { onObject = true; break; }
+            } else if (a.type === 'arrow') {
+                const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
+                if (isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, ept.x, ept.y) || isNearLine(mx, my, { x1: s.x, y1: s.y, x2: ept.x, y2: ept.y })) { onObject = true; break; }
+            }
+        }
+        if (!onObject) {
+            isSelecting = true;
+            selectRect = { x1: mx, y1: my, x2: mx, y2: my };
+            objects.forEach(a => a.selected = false);
+            redrawAll();
+        }
+    }, true);
+
+    canvas.addEventListener('mousemove', function (e) {
+        if (!isSelecting || !selectRect) return;
+        const rect = canvas.getBoundingClientRect();
+        selectRect.x2 = e.clientX - rect.left;
+        selectRect.y2 = e.clientY - rect.top;
+        redrawAll();
+    });
+
+    canvas.addEventListener('mouseup', function (e) {
+        if (!isSelecting || !selectRect) return;
+        isSelecting = false;
+        // Compute selection bounds
+        const xMin = Math.min(selectRect.x1, selectRect.x2);
+        const xMax = Math.max(selectRect.x1, selectRect.x2);
+        const yMin = Math.min(selectRect.y1, selectRect.y2);
+        const yMax = Math.max(selectRect.y1, selectRect.y2);
+        let anySelected = false;
+        for (const [i, a] of objects.entries()) {
+            let inRect = false;
+            if (a.type === 'ball') {
+                const center = toAbsolute(a.rx, a.ry);
+                const r = (a.width || 20) / 2 * 20;
+                // Use center for selection
+                if (center.x >= xMin && center.x <= xMax && center.y >= yMin && center.y <= yMax) inRect = true;
+            } else if (a.type === 'player') {
+                const center = toAbsolute(a.rx, a.ry);
+                let rx = a.rxLen || 32, ry = a.ryLen || 18;
+                // Use bounding box
+                if (center.x - rx >= xMin && center.x + rx <= xMax && center.y - ry >= yMin && center.y + ry <= yMax) inRect = true;
+            } else if (a.type === 'arrow') {
+                const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
+                // Both endpoints in rect
+                if (
+                    s.x >= xMin && s.x <= xMax && s.y >= yMin && s.y <= yMax &&
+                    ept.x >= xMin && ept.x <= xMax && ept.y >= yMin && ept.y <= yMax
+                ) inRect = true;
+            }
+            a.selected = inRect;
+            if (inRect) anySelected = true;
+        }
+        if (!anySelected) objects.forEach(a => a.selected = false);
+        selectRect = null;
+        redrawAll();
+        updateArrowControlsFromSelection();
+    });
+
+    // --- Draw selection rectangle in drawObjects ---
+    const origDrawObjects2 = drawObjects;
+    drawObjects = function () {
+        origDrawObjects2();
+        if (selectRect && isSelecting) {
+            ctx.save();
+            ctx.strokeStyle = '#1976d2';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.rect(
+                Math.min(selectRect.x1, selectRect.x2),
+                Math.min(selectRect.y1, selectRect.y2),
+                Math.abs(selectRect.x2 - selectRect.x1),
+                Math.abs(selectRect.y2 - selectRect.y1)
+            );
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+    };
 
     // --- Utility: near tests ---
     function isNearHandle(mx, my, x, y) {
