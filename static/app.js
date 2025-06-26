@@ -1,5 +1,14 @@
 // Entry point for the volleyball strategy board
 window.onload = function () {
+    // Website-related initialization
+    const burgerMenu = document.getElementById('burger-menu');
+    const navbarMenu = document.querySelector('.navbar-menu');
+    burgerMenu.addEventListener('click', function () {
+        navbarMenu.classList.toggle('active');
+    });
+
+
+    // Volleyball canvas
     const canvas = document.getElementById('court-canvas');
     const ctx = canvas.getContext('2d');
     let orientation = null; // will be set by loadCourtState or default
@@ -7,7 +16,7 @@ window.onload = function () {
     // Debug flag to show grabable area borders
     let showGrabAreas = false;
 
-    function getMaxCourtSize() {
+    function _getMaxCourtSize() {
         const padding = 16; // smaller margin for better fit
         const toolbarHeight = document.getElementById('toolbar').offsetHeight;
         const maxWidth = window.innerWidth - padding;
@@ -35,7 +44,7 @@ window.onload = function () {
 
     // Set canvas size
     function setCanvasSize() {
-        const size = getMaxCourtSize();
+        const size = _getMaxCourtSize();
         canvas.width = size.width;
         canvas.height = size.height;
     }
@@ -85,13 +94,40 @@ window.onload = function () {
         }
     }
 
-    function redraw() {
+    function redrawCourt() {
         setCanvasSize();
         drawCourt();
     }
 
-    // Toolbar button event (now rotate)
+    window.addEventListener('resize', redrawCourt);
+
+    // --- Generalized Object Logic ---
+    let objects = [];
+    let currentObject = null;
+    let objectInsertMode = null; // 'arrow', 'ball', 'player', or null
+    let dragMode = null;
+    let dragOffset = { x: 0, y: 0 };
+    let dragObjectIndex = -1;
+
+    // Default style values for new objects
+    let defaultWidth = 4;
+    let defaultColor = '#d32f2f';
+    let defaultHead = true;
+
+    // Toolbar buttons
+    const insertArrowBtn = document.getElementById('insert-arrow');
+    const insertBallBtn = document.getElementById('insert-ball');
+    const insertPlayerBtn = document.getElementById('insert-player');
+    const cursorBtn = document.getElementById('cursor-mode');
+    const clearBtn = document.getElementById('clear-state');
     const rotateBtn = document.getElementById('rotate-court');
+
+    const widthSel = document.getElementById('arrow-width');
+    const colorSel = document.getElementById('arrow-color');
+    const headChk = document.getElementById('arrow-head');
+
+
+    // Events
     rotateBtn.addEventListener('click', function () {
         // Transform arrows' coordinates (clockwise)
         objects.forEach(a => {
@@ -107,43 +143,6 @@ window.onload = function () {
         orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
         persistAndRedraw();
     });
-
-    // Burger menu functionality for mobile
-    const burgerMenu = document.getElementById('burger-menu');
-    const navbarMenu = document.querySelector('.navbar-menu');
-    burgerMenu.addEventListener('click', function () {
-        navbarMenu.classList.toggle('active');
-    });
-
-    window.addEventListener('resize', redraw);
-
-    // --- Utility: convert between absolute and relative coordinates ---
-    function toRelative(x, y) {
-        return { rx: x / canvas.width, ry: y / canvas.height };
-    }
-    function toAbsolute(rx, ry) {
-        return { x: rx * canvas.width, y: ry * canvas.height };
-    }
-
-    // --- Generalized Object Logic ---
-    let objects = [];
-    let currentObject = null;
-    let objectInsertMode = null; // 'arrow', 'ball', 'player', or null
-    let dragMode = null;
-    let dragOffset = { x: 0, y: 0 };
-    let dragObjectIndex = -1;
-
-    // Default style values for new objects
-    let defaultWidth = 4;
-    let defaultColor = '#d32f2f';
-    let defaultHead = true;
-
-    // Insert mode buttons
-    const insertArrowBtn = document.getElementById('insert-arrow');
-    const insertBallBtn = document.getElementById('insert-ball');
-    const insertPlayerBtn = document.getElementById('insert-player');
-    const cursorBtn = document.getElementById('cursor-mode');
-    const clearBtn = document.getElementById('clear-state');
 
     insertArrowBtn.addEventListener('click', function () {
         objectInsertMode = 'arrow';
@@ -182,42 +181,26 @@ window.onload = function () {
         persistAndRedraw();
     });
 
-    // Keyboard shortcuts
-    window.addEventListener('keydown', function (e) {
-        // Listen for Shift key to enter arrow insert mode
-        if (e.key === 'Shift' && !objectInsertMode) {
-            objectInsertMode = 'arrow';
-            canvas.style.cursor = 'crosshair';
-            objects.forEach(o => o.selected = false);
-            updateArrowControlsFromSelection();
-            updateToolbarActiveButton();
-        }
-        // Listen for Escape key to switch to cursor mode
-        if (e.key === 'Escape') {
-            objectInsertMode = null;
-            canvas.style.cursor = '';
-            [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
-            cursorBtn.classList.add('active');
-            objects.forEach(o => o.selected = false);
-            updateArrowControlsFromSelection();
-        }
-        // Remove selected object with Delete or Backspace
-        if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-            const idx = objects.findIndex(o => o.selected);
-            if (idx !== -1) {
-                objects.splice(idx, 1);
-                persistAndRedraw();
-            }
-        }
+    // When controls change, update selected object or defaults
+    widthSel.addEventListener('change', function () {
+        const val = parseInt(this.value);
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.width = val; persistAndRedraw(); }
+        else defaultWidth = val;
     });
-    window.addEventListener('keyup', function (e) {
-        // Only exit arrow insert mode if it was entered by Shift (not by button), and not currently drawing
-        if (e.key === 'Shift' && objectInsertMode === 'arrow' && !currentObject) {
-            objectInsertMode = null;
-            canvas.style.cursor = '';
-            updateToolbarActiveButton();
-        }
+    colorSel.addEventListener('input', function () {
+        const val = this.value;
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.color = val; persistAndRedraw(); }
+        else defaultColor = val;
     });
+    headChk.addEventListener('change', function () {
+        const val = this.checked;
+        const sel = objects.find(a => a.selected);
+        if (sel) { sel.head = val; persistAndRedraw(); }
+        else defaultHead = val;
+    });
+
 
     // Remove object on right click (context menu)
     canvas.addEventListener('contextmenu', function (e) {
@@ -262,6 +245,43 @@ window.onload = function () {
         }
     });
 
+    // Keyboard shortcuts
+    window.addEventListener('keydown', function (e) {
+        // Listen for Shift key to enter arrow insert mode
+        if (e.key === 'Shift' && !objectInsertMode) {
+            objectInsertMode = 'arrow';
+            canvas.style.cursor = 'crosshair';
+            objects.forEach(o => o.selected = false);
+            updateArrowControlsFromSelection();
+            updateToolbarActiveButton();
+        }
+        // Listen for Escape key to switch to cursor mode
+        if (e.key === 'Escape') {
+            objectInsertMode = null;
+            canvas.style.cursor = '';
+            [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
+            cursorBtn.classList.add('active');
+            objects.forEach(o => o.selected = false);
+            updateArrowControlsFromSelection();
+        }
+        // Remove selected object with Delete or Backspace
+        if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            const idx = objects.findIndex(o => o.selected);
+            if (idx !== -1) {
+                objects.splice(idx, 1);
+                persistAndRedraw();
+            }
+        }
+    });
+    window.addEventListener('keyup', function (e) {
+        // Only exit arrow insert mode if it was entered by Shift (not by button), and not currently drawing
+        if (e.key === 'Shift' && objectInsertMode === 'arrow' && !currentObject) {
+            objectInsertMode = null;
+            canvas.style.cursor = '';
+            updateToolbarActiveButton();
+        }
+    });
+
     // Helper to update toolbar button active state
     function updateToolbarActiveButton() {
         [cursorBtn, insertArrowBtn, insertBallBtn, insertPlayerBtn].forEach(btn => btn.classList.remove('active'));
@@ -275,10 +295,6 @@ window.onload = function () {
     function selectOnlyObject(idx) {
         objects.forEach((o, i) => o.selected = (i === idx));
     }
-
-    const widthSel = document.getElementById('arrow-width');
-    const colorSel = document.getElementById('arrow-color');
-    const headChk = document.getElementById('arrow-head');
 
     // Update style controls from selected object, or set defaults
     function updateArrowControlsFromSelection() {
@@ -294,25 +310,14 @@ window.onload = function () {
         }
     }
 
-    // When controls change, update selected object or defaults
-    widthSel.addEventListener('change', function () {
-        const val = parseInt(this.value);
-        const sel = objects.find(a => a.selected);
-        if (sel) { sel.width = val; persistAndRedraw(); }
-        else defaultWidth = val;
-    });
-    colorSel.addEventListener('input', function () {
-        const val = this.value;
-        const sel = objects.find(a => a.selected);
-        if (sel) { sel.color = val; persistAndRedraw(); }
-        else defaultColor = val;
-    });
-    headChk.addEventListener('change', function () {
-        const val = this.checked;
-        const sel = objects.find(a => a.selected);
-        if (sel) { sel.head = val; persistAndRedraw(); }
-        else defaultHead = val;
-    });
+    // Object drawing logic
+    // --- Utility: convert between absolute and relative coordinates ---
+    function toRelative(x, y) {
+        return { rx: x / canvas.width, ry: y / canvas.height };
+    }
+    function toAbsolute(rx, ry) {
+        return { x: rx * canvas.width, y: ry * canvas.height };
+    }
 
     // Update drawArrows to use relative coordinates
     function drawObjects() {
@@ -389,7 +394,7 @@ window.onload = function () {
                 }
             }
         }
-        // Draw all balls last (topmost)
+        // Draw all balls last (to make sure they're at the front)
         for (const obj of objects) {
             if (obj.type !== 'ball') continue;
             const center = toAbsolute(obj.rx, obj.ry);
@@ -415,6 +420,7 @@ window.onload = function () {
             ctx.stroke(ballPath);
             ctx.restore();
         }
+
         // --- Draw grab area border for arrow handles and line ---
         if (showGrabAreas) {
             for (const obj of objects) {
@@ -526,11 +532,6 @@ window.onload = function () {
         ctx.restore();
     }
 
-    function redrawAll() {
-        redraw();
-        drawObjects();
-    }
-
     // --- Remove button drawing utility ---
     function drawRemoveButton(x, y, r = 11) { // smaller radius
         ctx.save();
@@ -552,6 +553,12 @@ window.onload = function () {
         ctx.stroke();
         ctx.restore();
     }
+
+    function redrawAll() {
+        redrawCourt();
+        drawObjects();
+    }
+
 
     // Track hovered object and remove button hover
     let hoveredObjectIndex = -1;
@@ -1469,8 +1476,8 @@ window.onload = function () {
     }
 
     // Redraw arrows on resize/orientation change
-    const origRedraw = redraw;
-    redraw = function () {
+    const origRedraw = redrawCourt;
+    redrawCourt = function () {
         origRedraw();
         drawObjects();
     };
