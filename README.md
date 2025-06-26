@@ -25,9 +25,12 @@ It allows users to create and manipulate volleyball formations, including player
 
 ## Project Structure
 
-- `index.html` - Main HTML file
-- `static/app.js` - Main JavaScript
-- `static/styles.css` - Stylesheet
+- `index.html`  
+  Single HTML file, contains the structure of the page and the toolbar + canvas
+- `static/app.js`  
+  All the JavaScript code for the app, including interactions with the canvas, event handling and state management.
+- `static/styles.css`  
+  Your classic stylesheet
 
 No build step required. All files are static and ready for deployment.  
 Website is hosted on GitHub Pages
