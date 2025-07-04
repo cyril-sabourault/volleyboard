@@ -1014,336 +1014,110 @@ window.onload = function () {
         }
     });
 
-    canvas.addEventListener('mouseup', function (e) {
-        if (objectInsertMode && currentObject) {
-            objects.push(currentObject);
-            // If placing a ball, immediately switch to cursor mode
-            if (currentObject.type === 'ball') {
-                objectInsertMode = null;
-                updateToolbarActiveButton();
-                canvas.style.cursor = '';
-            }
-            currentObject = null;
-            startPt = null;
-            persistAndRedraw();
-            updateArrowControlsFromSelection();
-        } else if (dragMode) {
-            dragMode = null;
-            dragObjectIndex = -1;
-        }
-    });
-
-    // --- Cursor feedback for all objects (arrows, players, balls) ---
-    function updateCursor(e) {
+    // --- Touch event helpers ---
+    function getTouchPos(touch) {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        if (objectInsertMode) {
-            canvas.style.cursor = 'crosshair';
-            return;
-        }
-        // Player: tilt handle (show grab cursor)
-        for (const a of objects) {
-            if (a.type === 'player' && a.selected) {
-                const center = toAbsolute(a.rx, a.ry);
-                let rx = a.rxLen || 32, ry = a.ryLen || 18;
-                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
-                // Compute handle position by rotating (0, -ry-20) by angle
-                const localX = 0, localY = -ry - 20;
-                const hx = center.x + localX * Math.cos(angle) - localY * Math.sin(angle);
-                const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
-                const dist = Math.hypot(mx - hx, my - hy);
-                if (dist < 12) {
-                    updateCursor._wasOnTiltHandle = true;
-                    canvas.style.cursor = 'grab';
-                    return;
-                }
-            }
-        }
-        updateCursor._wasOnTiltHandle = false;
-        // Ball: check if mouse is inside any ball
-        for (const a of objects) {
-            if (a.type === 'ball') {
-                const center = toAbsolute(a.rx, a.ry);
-                const r = (a.width || 20) / 2 * 20;
-                if (Math.hypot(mx - center.x, my - center.y) < r * 0.8) {
-                    canvas.style.cursor = 'grab';
-                    return;
-                }
-            }
-        }
-        // Player: ellipse hit test
-        for (const a of objects) {
-            if (a.type === 'player') {
-                const center = toAbsolute(a.rx, a.ry);
-                let rx = a.rxLen || 32, ry = a.ryLen || 18;
-                const dx = mx - center.x, dy = my - center.y;
-                if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1) {
-                    canvas.style.cursor = 'grab';
-                    return;
-                }
-            }
-        }
-        // Arrow handles
-        for (const a of objects) {
-            if (a.type === 'arrow') {
-                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
-                if (isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, e.x, e.y)) {
-                    canvas.style.cursor = 'pointer';
-                    return;
-                }
-            }
-        }
-        // Arrow line
-        for (const a of objects) {
-            if (a.type === 'arrow') {
-                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
-                if (isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y })) {
-                    canvas.style.cursor = 'grab';
-                    return;
-                }
-            }
-        }
-        canvas.style.cursor = '';
+        return {
+            x: (touch.clientX - rect.left),
+            y: (touch.clientY - rect.top)
+        };
     }
-    canvas.removeEventListener('mousemove', updateCursor); // Remove old if present
-    canvas.addEventListener('mousemove', updateCursor);
-    canvas.addEventListener('mouseleave', function () { canvas.style.cursor = ''; });
-
-    // --- Ball/player move logic in mousedown ---
-    canvas.addEventListener('mousedown', function (e) {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        if (objectInsertMode) {
-            startPt = { x: mx, y: my };
-            const relStart = toRelative(mx, my);
-            if (objectInsertMode === 'arrow') {
-                currentObject = {
-                    type: 'arrow',
-                    rx1: relStart.rx, ry1: relStart.ry, rx2: relStart.rx, ry2: relStart.ry, selected: true,
-                    width: defaultWidth,
-                    color: defaultColor,
-                    head: defaultHead
-                };
-            } else if (objectInsertMode === 'ball') {
-                currentObject = {
-                    type: 'ball',
-                    rx: relStart.rx, ry: relStart.ry, selected: true,
-                    width: defaultWidth,
-                    color: defaultColor
-                };
-            } else if (objectInsertMode === 'player') {
-                const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
-                currentObject = {
-                    type: 'player',
-                    rx: relStart.rx, ry: relStart.ry, selected: true,
-                    width: defaultWidth,
-                    color: defaultColor,
-                    rxLen, ryLen
-                };
-            }
-        } else {
-            // --- Player tilt handle hit test (before player move) ---
-            dragObjectIndex = objects.findIndex(a => {
-                if (a.type !== 'player' || !a.selected) return false;
-                const center = toAbsolute(a.rx, a.ry);
-                let rx = a.rxLen || 32, ry = a.ryLen || 18;
-                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
-                // Compute handle position by rotating (0, -ry-20) by angle
-                const localX = 0, localY = -ry - 20;
-                const hx = center.x + localX * Math.cos(angle) - localY * Math.sin(angle);
-                const hy = center.y + localX * Math.sin(angle) + localY * Math.cos(angle);
-                const dist = Math.hypot(mx - hx, my - hy);
-                return dist < 12;
-            });
-            if (dragObjectIndex !== -1) {
-                dragMode = 'rotate-player';
-                const a = objects[dragObjectIndex];
-                const center = toAbsolute(a.rx, a.ry);
-                dragOffset = { cx: center.x, cy: center.y, startAngle: a.rotation || 0 };
-                redrawAll();
-                updateArrowControlsFromSelection();
-                return;
-            }
-            // Ball: check if mouse is inside any ball
-            dragObjectIndex = objects.findIndex(a => {
-                if (a.type !== 'ball') return false;
-                const center = toAbsolute(a.rx, a.ry);
-                const r = (a.width || 20) / 2 * 20;
-                return Math.hypot(mx - center.x, my - center.y) < r * 0.8;
-            });
-            if (dragObjectIndex !== -1) {
-                selectOnlyObject(dragObjectIndex);
-                dragMode = 'move-ball';
-                dragOffset = {
-                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
-                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
-                };
-                redrawAll();
-                updateArrowControlsFromSelection();
-                return;
-            }
-            // Player: check if mouse is inside any player (but not on tilt handle)
-            dragObjectIndex = objects.findIndex(a => {
-                if (a.type !== 'player') return false;
-                const center = toAbsolute(a.rx, a.ry);
-                let rx = a.rxLen || 32, ry = a.ryLen || 18;
-                const dx = mx - center.x, dy = my - center.y;
-                // Also check not on tilt handle
-                let angle = (a.rotation || 0) + (orientation === 'horizontal' ? Math.PI / 2 : 0);
-                const hx = center.x + Math.sin(angle) * 0 + Math.cos(angle) * (0) - Math.sin(angle) * (ry + 20);
-                const hy = center.y - Math.cos(angle) * (0) + Math.sin(angle) * (0) - Math.cos(angle) * (ry + 20);
-                if (Math.hypot(mx - hx, my - hy) < 16) return false;
-                return ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)) <= 1;
-            });
-            if (dragObjectIndex !== -1) {
-                selectOnlyObject(dragObjectIndex);
-                dragMode = 'move-player';
-                dragOffset = {
-                    x: mx - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).x,
-                    y: my - toAbsolute(objects[dragObjectIndex].rx, objects[dragObjectIndex].ry).y
-                };
-                redrawAll();
-                updateArrowControlsFromSelection();
-                return;
-            }
-            // Check for handle hover (resize zone)
-            dragObjectIndex = objects.findIndex(a => {
-                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
-                return isNearHandle(mx, my, s.x, s.y) || isNearHandle(mx, my, e.x, e.y);
-            });
-            if (dragObjectIndex !== -1) {
-                selectOnlyObject(dragObjectIndex);
-                const a = objects[dragObjectIndex];
-                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
-                if (isNearHandle(mx, my, s.x, s.y)) {
-                    dragMode = 'resize-start';
-                } else {
-                    dragMode = 'resize-end';
-                }
-                dragOffset = { x: mx, y: my };
-                redrawAll();
-                updateArrowControlsFromSelection();
-                return;
-            }
-            // Check for line hover (move zone)
-            dragObjectIndex = objects.findIndex(a => {
-                const s = toAbsolute(a.rx1, a.ry1), e = toAbsolute(a.rx2, a.ry2);
-                return isNearLine(mx, my, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
-            });
-            if (dragObjectIndex !== -1) {
-                selectOnlyObject(dragObjectIndex);
-                const a = objects[dragObjectIndex];
-                a.selected = true;
-                dragMode = 'move';
-                dragOffset = { x: mx, y: my };
-                redrawAll();
-                updateArrowControlsFromSelection();
-                return;
-            }
-            // Deselect all if not clicking on any object
-            objects.forEach(a => a.selected = false);
-            redrawAll();
-            updateArrowControlsFromSelection();
-        }
-    });
-
-    function getProportionalPlayerSize(orientation) {
-        // because default view is horizontal, and players face the net
-        // so width of player is proportional to height of canvas
-        const playerWidth = canvas.height * 0.07; // 15% of height
-        const playerHeight = 18;
-
-        if (orientation === 'horizontal') {
-            return { rxLen: playerWidth, ryLen: playerHeight };
-        } else {
-            return { rxLen: playerWidth, ryLen: playerHeight };
-        }
+    function firstTouch(e) {
+        return e.touches && e.touches.length > 0 ? e.touches[0] : null;
     }
 
-    // Add player on double click shortcut
-    canvas.addEventListener('dblclick', function (e) {
-        // Only add if not in insert mode (so double click is a shortcut)
-        if (!objectInsertMode) {
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-            const rel = toRelative(mx, my);
+    // --- Touch event wrappers for mouse logic ---
+    function handleTouchStart(e) {
+        if (e.touches.length > 1) return; // Ignore multi-touch
+        const t = firstTouch(e);
+        if (!t) return;
+        const fakeEvent = {
+            button: 0,
+            clientX: t.clientX,
+            clientY: t.clientY,
+            altKey: e.altKey,
+            metaKey: e.metaKey,
+            shiftKey: e.shiftKey,
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation()
+        };
+        e.preventDefault();
+        canvas.dispatchEvent(new MouseEvent('mousedown', fakeEvent));
+    }
+    function handleTouchMove(e) {
+        if (e.touches.length > 1) return;
+        const t = firstTouch(e);
+        if (!t) return;
+        const fakeEvent = {
+            clientX: t.clientX,
+            clientY: t.clientY,
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation()
+        };
+        e.preventDefault();
+        canvas.dispatchEvent(new MouseEvent('mousemove', fakeEvent));
+    }
+    function handleTouchEnd(e) {
+        // Use changedTouches for end position
+        const t = e.changedTouches && e.changedTouches[0];
+        if (!t) return;
+        const fakeEvent = {
+            clientX: t.clientX,
+            clientY: t.clientY,
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation()
+        };
+        e.preventDefault();
+        canvas.dispatchEvent(new MouseEvent('mouseup', fakeEvent));
+    }
+    function handleTouchCancel(e) {
+        // End drag/select on cancel
+        dragMode = null;
+        dragObjectIndex = -1;
+        isSelecting = false;
+        selectRect = null;
+        redrawAll();
+    }
 
-            // Add a default player at the mouse position
-            const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
-            objects.push({
-                type: 'player',
-                rx: rel.rx, ry: rel.ry, selected: false,
-                width: defaultWidth,
-                color: defaultColor,
-                rxLen, ryLen
-            });
-            persistAndRedraw();
-        }
-    });
+    // Attach touch event listeners
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchCancel, { passive: false });
 
-    canvas.addEventListener('mousemove', function (e) {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        if (objectInsertMode && startPt && currentObject) {
-            const relEnd = toRelative(mx, my);
-            currentObject.rx2 = relEnd.rx;
-            currentObject.ry2 = relEnd.ry;
-            redrawAll();
-            // Draw preview
-            const s = toAbsolute(currentObject.rx1, currentObject.ry1);
-            const ept = toAbsolute(currentObject.rx2, currentObject.ry2);
-            ctx.save();
-            ctx.strokeStyle = '#1976d2';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(s.x, s.y);
-            ctx.lineTo(ept.x, ept.y);
-            ctx.stroke();
-            drawArrowhead(s.x, s.y, ept.x, ept.y);
-            ctx.restore();
-        } else if (dragMode && dragObjectIndex !== -1) {
-            if (dragMode === 'move-ball' || dragMode === 'move-player') {
-                const a = objects[dragObjectIndex];
-                const newCenter = toRelative(mx - dragOffset.x, my - dragOffset.y);
-                a.rx = newCenter.rx;
-                a.ry = newCenter.ry;
-                persistAndRedraw();
-            } else {
-                const a = objects[dragObjectIndex];
-                const s = toAbsolute(a.rx1, a.ry1), ept = toAbsolute(a.rx2, a.ry2);
-                if (dragMode === 'move') {
-                    const dx = mx - dragOffset.x;
-                    const dy = my - dragOffset.y;
-                    const newS = toRelative(s.x + dx, s.y + dy);
-                    const newE = toRelative(ept.x + dx, ept.y + dy);
-                    a.rx1 = newS.rx; a.ry1 = newS.ry; a.rx2 = newE.rx; a.ry2 = newE.ry;
-                    dragOffset = { x: mx, y: my };
-                } else if (dragMode === 'resize-start') {
-                    const rel = toRelative(mx, my);
-                    a.rx1 = rel.rx; a.ry1 = rel.ry;
-                } else if (dragMode === 'resize-end') {
-                    const rel = toRelative(mx, my);
-                    a.rx2 = rel.rx; a.ry2 = rel.ry;
-                }
-                persistAndRedraw();
-            }
-        } else if (dragMode === 'rotate-player' && dragObjectIndex !== -1) {
-            const a = objects[dragObjectIndex];
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-            // Calculate angle from center to mouse
-            const angle = Math.atan2(my - dragOffset.cy, mx - dragOffset.cx);
-            // Subtract orientation offset
-            let orient = (orientation === 'horizontal') ? Math.PI / 2 : 0;
-            a.rotation = angle - orient;
-            persistAndRedraw();
-        }
-    });
+    // Prevent scrolling when touching the canvas
+    canvas.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+
+    // --- Touch drag logic: call same handlers as mouse ---
+    canvas.addEventListener('touchstart', function (e) {
+        if (e.touches.length > 1) return;
+        const t = e.touches[0];
+        const fakeEvent = {
+            clientX: t.clientX,
+            clientY: t.clientY,
+            button: 0,
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation()
+        };
+        canvas.dispatchEvent(new MouseEvent('mousedown', fakeEvent));
+    }, { passive: false });
+    canvas.addEventListener('touchmove', function (e) {
+        if (e.touches.length > 1) return;
+        const t = e.touches[0];
+        const fakeEvent = {
+            clientX: t.clientX,
+            clientY: t.clientY,
+            preventDefault: () => e.preventDefault(),
+            stopPropagation: () => e.stopPropagation()
+        };
+        canvas.dispatchEvent(new MouseEvent('mousemove', fakeEvent));
+    }, { passive: false });
+    canvas.addEventListener('touchend', function (e) {
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 0, clientY: 0 }));
+    }, { passive: false });
+    canvas.addEventListener('touchcancel', function (e) {
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 0, clientY: 0 }));
+    }, { passive: false });
 
     // --- Selection rectangle state ---
     let selectRect = null; // {x1, y1, x2, y2}
@@ -1448,6 +1222,23 @@ window.onload = function () {
         }
     };
 
+    function getProportionalPlayerSize(orientation) {
+        // The wider side of the player is always parallel to the net
+        // Player width is 7% of the net's length (court width for horizontal, court height for vertical)
+        // The height/width ratio is the same in both orientations
+        const widthRatio = 0.07;
+        const aspect = 18 / 48; // Use a fixed aspect ratio (height/width) for both orientations
+        let playerWidth, playerHeight;
+        if (orientation === 'vertical') {
+            playerWidth = canvas.width * widthRatio;
+            playerHeight = playerWidth * aspect;
+        } else {
+            playerWidth = canvas.height * widthRatio;
+            playerHeight = playerWidth * aspect;
+        }
+        return { rxLen: playerWidth, ryLen: playerHeight };
+    }
+
     // --- Utility: near tests ---
     function isNearHandle(mx, my, x, y) {
         return Math.hypot(mx - x, my - y) < 12;
@@ -1477,4 +1268,29 @@ window.onload = function () {
 
     // Call on load to set initial state
     updateToolbarActiveButton();
+
+    // --- Double-click to insert player (mouse only, not touch) ---
+    canvas.addEventListener('dblclick', function (e) {
+        // Only if not in insert mode and not a touch event
+        if (objectInsertMode || e.pointerType === 'touch' || e.touches) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        // Insert player at clicked position
+        const { rxLen, ryLen } = getProportionalPlayerSize(orientation);
+        const rel = toRelative(mx, my);
+        objects.forEach(o => o.selected = false);
+        objects.push({
+            type: 'player',
+            rx: rel.rx,
+            ry: rel.ry,
+            selected: true,
+            width: defaultWidth,
+            color: defaultColor,
+            rxLen,
+            ryLen
+        });
+        persistAndRedraw();
+        updateArrowControlsFromSelection();
+    });
 };
