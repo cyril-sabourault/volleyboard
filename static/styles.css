@@ -167,3 +167,45 @@ body {
 #toolbar button {
     transition: background 0.15s, border 0.15s, color 0.15s;
 }
+
+@media (max-width: 600px) {
+    #toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        width: 100vw;
+        min-width: 0;
+        height: auto;
+        padding: 0 4px;
+        gap: 0;
+        box-sizing: border-box;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #toolbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    #toolbar button,
+    #toolbar label {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1em;
+        margin: 0 2px;
+        padding: 6px 6px;
+    }
+
+    #toolbar button span {
+        display: none !important;
+    }
+
+    #toolbar button svg {
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    body {
+        padding: 0;
+    }
+}
