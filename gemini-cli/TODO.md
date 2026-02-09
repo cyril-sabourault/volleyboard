@@ -20,5 +20,8 @@ Then, open a web browser and navigate to `http://localhost:8080` to access the V
 ## TODO
 
 - Add alt shortcut to duplicate an object
-- can't see color palette on mobile
-- deploy new version on github page
+- add hover on pc and long press on mobile for shortcut (insert a setter, insert a dotted line)
+- enter full screen mode, or make the court fit -width
+- rotate the court...
+- on screens too small, the collapse toolbar button is detached from the toolbar 
+

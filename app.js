@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const undoBtn = document.getElementById('undo');
     const redoBtn = document.getElementById('redo');
     const colorPalette = document.getElementById('color-palette');
+    const colorPickerBtn = document.getElementById('color-picker');
 
     const paletteColors = [
         '#000000', '#FFFFFF', '#FF0000', '#008000', '#0000FF',
@@ -31,34 +32,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleColorClick(color) {
-        if (color === state.currentColor) {
-            isPaletteOpen = !isPaletteOpen; // Toggle palette
-        } else {
-            state.currentColor = color;
-            isPaletteOpen = false; // Close after selection
-            recordState();
-        }
+        state.currentColor = color;
+        isPaletteOpen = false; // Close after selection
+        recordState();
         updatePaletteState();
     }
 
     function updatePaletteState() {
+        if (isPaletteOpen) {
+            colorPalette.classList.add('palette-open');
+        } else {
+            colorPalette.classList.remove('palette-open');
+        }
+
+        // Update the color of the picker button itself to the selected color
+        updateColorPicker();
+
+
         Array.from(colorPalette.children).forEach(swatch => {
             const swatchColor = swatch.dataset.color;
-
-            // Visibility
-            if (isPaletteOpen) {
-                swatch.style.display = 'block';
-            } else {
-                swatch.style.display = (swatchColor === state.currentColor) ? 'block' : 'none';
-            }
-
-            // Selection highlight
             if (swatchColor === state.currentColor) {
                 swatch.classList.add('selected');
             } else {
                 swatch.classList.remove('selected');
             }
         });
+    }
+
+    function updateColorPicker() {
+        const preview = colorPickerBtn.querySelector('.color-picker-preview');
+        if (preview) {
+            preview.style.backgroundColor = state.currentColor;
+        }
     }
 
     const toolButtons = {
@@ -73,6 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('dblclick', function(e) {
         e.preventDefault();
     });
+    
+    colorPickerBtn.addEventListener('click', () => {
+        isPaletteOpen = !isPaletteOpen;
+        updatePaletteState();
+    });
+
 
     let state = {
         objects: [],
@@ -919,6 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadState();
     renderAllObjects();
     exitPlacementMode();
+    updateColorPicker();
 
     const toolbar = document.getElementById('toolbar');
     const toggleToolbarBtn = document.getElementById('toggle-toolbar-btn');

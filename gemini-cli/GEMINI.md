@@ -13,7 +13,7 @@ Volleyboard is a static, single-page web application designed as an online white
     *   **Select Mode:** The default mode for selecting and moving objects.
     *   **Placement Mode:** Activated when an object creation tool is selected. The active tool is highlighted in the toolbar.
 *   **Tools:** The toolbar contains: 'Select', 'Add Player', 'Add Ball', 'Draw Line', 'Clear All', 'Undo', and 'Redo'.
-*   **Color Customization:** A color picker is available. The selected color is used for any new shapes or drawings and is persisted.
+*   **Color Customization:** A color picker button is available in the toolbar. The button displays the currently selected color. Clicking the button opens a palette of color swatches to choose from. The selected color is used for any new shapes or drawings and is persisted.
 
 ## 3. Visuals & Canvas
 
@@ -26,6 +26,7 @@ Volleyboard is a static, single-page web application designed as an online white
 ## 4. UI/UX and Interaction Details
 
 *   **Zoom Prevention:** Accidental zooming (e.g., via double-tap or pinch) is disabled.
+*   **Text Selection:** Text selection is disabled everywhere on the site.
 *   **Object Insertion (Placement Mode):**
     *   Clicking 'Add Player' or 'Add Ball' enters placement mode; the next click on the court places the object at that location.
     *   Clicking 'Draw Line' enters a press-and-drag drawing mode:
@@ -60,3 +61,7 @@ Volleyboard is a static, single-page web application designed as an online white
 *   **Frontend:** The application is built using HTML, CSS, and JavaScript.
 *   **Persistence:** Uses the browser's `localStorage` API to save and retrieve the board's state.
 *   **Graphics:** The court and objects are rendered using a combination of HTML elements (`<div>`) and SVG for lines, prioritizing ease of manipulation.
+
+## 6. Development
+
+This is a static website. Do not attempt to start a server using `npm start` or any other command. To view the website, open the `index.html` file directly in a web browser.
