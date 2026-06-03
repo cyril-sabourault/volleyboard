@@ -1,8 +1,13 @@
 {
-    "name": "volleyboard",
-    "version": "0.1.0",
-    "description": "Volleyball strategy board web app.",
-    "scripts": {},
-    "author": "",
-    "license": "MIT"
+  "name": "aetherboard",
+  "version": "1.0.0",
+  "description": "Sleek collaborative whiteboarding workspace with dynamic vectors, custom stickies, and AI teammate simulation.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
 }
